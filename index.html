@@ -2,7 +2,6 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <base target="_top">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>文法多機能学習アプリ</title>
   <style>
@@ -180,6 +179,9 @@
   </div>
 
   <script>
+    // デプロイしたGASの「ウェブアプリURL」を入力してください
+    const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbww1_XXiTf6RkWWlwu9nQhNhe1XpmwYODv3QkTRl1vRtS6Et4Bv2UxBA6aiJ57OknP_/exec';
+
     let homeData = null;
     let currentQuestions = [];
     let currentIndex = 0;
@@ -211,13 +213,34 @@
       return document.getElementById('student-id').value.trim();
     }
 
-    function fetchHomeData() {
+    // API呼び出し関数 (GET)
+    async function apiGet(params) {
+      const url = new URL(GAS_API_URL);
+      Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
+      const response = await fetch(url.toString());
+      return await response.json();
+    }
+
+    // API呼び出し関数 (POST)
+    async function apiPost(data) {
+      const response = await fetch(GAS_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(data)
+      });
+      return await response.json();
+    }
+
+    async function fetchHomeData() {
       const studentId = getStudentId();
       showLoading('データを読み込み中...');
-      google.script.run
-        .withSuccessHandler(initHome)
-        .withFailureHandler(handleError)
-        .getHomeData(studentId);
+      try {
+        const res = await apiGet({ action: 'getHomeData', studentId: studentId });
+        if (res.status === 'error') throw new Error(res.message);
+        initHome(res);
+      } catch (err) {
+        handleError(err);
+      }
     }
 
     function initHome(data) {
@@ -266,7 +289,7 @@
       document.getElementById('progress-fill').style.width = percent + '%';
     }
 
-    function startLearning() {
+    async function startLearning() {
       const studentId = getStudentId();
       if (!studentId) {
         alert('学籍番号（または生徒ID）を入力してください。');
@@ -278,10 +301,19 @@
       currentMode = document.getElementById('mode-select').value;
 
       showLoading('問題を準備中...');
-      google.script.run
-        .withSuccessHandler(setupQuiz)
-        .withFailureHandler(handleError)
-        .getQuestions(studentId, g, l, currentMode);
+      try {
+        const res = await apiGet({
+          action: 'getQuestions',
+          studentId: studentId,
+          grammar: g,
+          level: l,
+          mode: currentMode
+        });
+        if (res.status === 'error') throw new Error(res.message);
+        setupQuiz(res.questions);
+      } catch (err) {
+        handleError(err);
+      }
     }
 
     function setupQuiz(questions) {
@@ -338,7 +370,6 @@
       }
     }
 
-    // 1. 選択UI（正解肢 + G〜J列のダミー単語で4択作成）
     function setupChoiceUI(q) {
       const choiceContainer = document.getElementById('ui-choice');
       choiceContainer.innerHTML = '';
@@ -367,7 +398,6 @@
       window.selectedOption = null;
     }
 
-    // 2. 並べ替えUI（E列の英文を分解して並べ替え）
     function setupSortUI(q) {
       const sortContainer = document.getElementById('ui-sort');
       sortContainer.classList.remove('hidden');
@@ -396,7 +426,6 @@
       });
     }
 
-    // 3. 書取りUI
     function setupWriteUI(q) {
       const writeContainer = document.getElementById('ui-write');
       writeContainer.classList.remove('hidden');
@@ -406,7 +435,7 @@
       input.focus();
     }
 
-    function checkAnswer() {
+    async function checkAnswer() {
       const q = currentQuestions[currentIndex];
       const feedback = document.getElementById('feedback');
       const studentId = getStudentId();
@@ -437,7 +466,14 @@
       if (userAns.toLowerCase() === String(targetCorrectAns).trim().toLowerCase()) {
         feedback.innerText = '⭕ 正解！';
         feedback.className = 'feedback correct';
-        google.script.run.markAsCleared(studentId, q.id, currentMode);
+        
+        // バックグラウンドでGAS APIへ正解を送信
+        apiPost({
+          action: 'markAsCleared',
+          studentId: studentId,
+          questionId: q.id,
+          mode: currentMode
+        });
       } else {
         feedback.innerText = `❌ 不正解... (正解: ${targetCorrectAns})`;
         feedback.className = 'feedback incorrect';
@@ -459,7 +495,7 @@
       fetchHomeData();
     }
 
-    function handleReset() {
+    async function handleReset() {
       const studentId = getStudentId();
       if (!studentId) return alert('学籍番号（または生徒ID）を入力してください。');
 
@@ -469,14 +505,20 @@
 
       if (confirm(`選択条件の進捗をリセットしますか？`)) {
         showLoading('リセット中...');
-        google.script.run
-          .withSuccessHandler(() => {
-            hideLoading();
-            alert('進捗をリセットしました。');
-            fetchHomeData();
-          })
-          .withFailureHandler(handleError)
-          .resetProgress(studentId, g, l, m);
+        try {
+          await apiPost({
+            action: 'resetProgress',
+            studentId: studentId,
+            grammar: g,
+            level: l,
+            mode: m
+          });
+          hideLoading();
+          alert('進捗をリセットしました。');
+          fetchHomeData();
+        } catch (err) {
+          handleError(err);
+        }
       }
     }
 
