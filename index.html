@@ -76,7 +76,7 @@
     .btn-primary:hover { background-color: var(--primary-hover); }
     .btn-warning { background-color: var(--warning-color); color: white; }
     .btn-secondary { background-color: #e5e7eb; color: var(--text-main); }
-    
+
     .options-grid { display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 16px; }
     .btn-option {
       background-color: #f3f4f6; border: 1px solid var(--border-color);
@@ -95,8 +95,8 @@
     }
 
     .quiz-info { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px; display: flex; justify-content: space-between; }
-    .japanese-text { font-size: 1rem; color: var(--text-main); font-weight: 600; margin-bottom: 8px; background: #eef2ff; padding: 10px; border-radius: 6px; }
-    .question-box { font-size: 1.15rem; font-weight: 600; line-height: 1.5; margin-bottom: 20px; }
+    .question-box { font-size: 1.15rem; font-weight: 600; line-height: 1.5; margin-bottom: 8px; }
+    .japanese-text { font-size: 0.95rem; color: var(--text-muted); font-weight: 500; margin-bottom: 20px; }
     .feedback { margin: 16px 0; padding: 12px; border-radius: 6px; font-weight: 600; text-align: center; }
     .feedback.correct { background-color: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
     .feedback.incorrect { background-color: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
@@ -138,8 +138,8 @@
         <label for="level-select">レベル（学習形式）</label>
         <select id="level-select" onchange="updateStatusDisplay()">
           <option value="1">レベル 1 （選択問題）</option>
-          <option value="2">レベル 2 （並べ替え）</option>
-          <option value="3">レベル 3 （書取り）</option>
+          <option value="2">レベル 2 （単語入力）</option>
+          <option value="3">レベル 3 （並べ替え）</option>
         </select>
       </div>
 
@@ -166,28 +166,27 @@
         <span id="quiz-progress">1 / 10 問</span>
       </div>
 
-      <div id="japanese-box" class="japanese-text"></div>
+      <!-- 問題文表示エリア（英文の上に、和訳を下に） -->
       <div class="question-box" id="question-text"></div>
+      <div id="japanese-box" class="japanese-text"></div>
 
-      <!-- 1. 選択問題UI -->
+      <!-- 1. レベル1: 選択問題UI -->
       <div id="ui-choice" class="options-grid hidden"></div>
 
-      <!-- 2. 並べ替えUI -->
-      <div id="ui-sort" class="hidden">
-        <label>回答エリア（タップで戻す）:</label>
-        <div id="selected-words" class="word-container"></div>
-        <label>単語プール（タップで選択）:</label>
-        <div id="pool-words" class="word-container"></div>
+      <!-- 2. レベル2: 単語入力UI -->
+      <div id="ui-write" class="form-group hidden">
+        <input type="text" id="user-answer" placeholder="( )に入る単語を入力..." autocomplete="off">
       </div>
 
-      <!-- 3. 書取りUI -->
-      <div id="ui-write" class="form-group hidden">
-        <input type="text" id="user-answer" placeholder="ターゲット単語を入力..." autocomplete="off">
+      <!-- 3. レベル3: 並べ替えUI -->
+      <div id="ui-sort" class="hidden">
+        <div id="selected-words" class="word-container"></div>
+        <div id="pool-words" class="word-container"></div>
       </div>
 
       <div id="feedback" class="feedback hidden"></div>
 
-      <div class="btn-group">
+      <div class="btn-group" style="margin-top:12px;">
         <button id="submit-btn" class="btn-primary" onclick="checkAnswer()">回答する</button>
         <button id="next-btn" class="btn-primary hidden" onclick="nextQuestion()">次の問題へ</button>
         <button class="btn-secondary" onclick="backToHome()">ホームに戻る</button>
@@ -197,7 +196,7 @@
 
   <script>
     // デプロイしたGASの「ウェブアプリURL」を設定してください
-    const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbwA63p02imat0N2c27Hz9PS2qHs7VUhhBShlC2hitu5aAlpEWTEXH7QaMxuzlxhU89b/exec';
+    const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbxOS2bzLFYWi0Pi3ntLQbIIMqX2g1mPYdJyhScV44rcdD6bfcD9VcTbHE_VsTuH8eVz/exec';
 
     let homeData = null;
     let currentQuestions = [];
@@ -272,7 +271,7 @@
           const chk = document.createElement('input');
           chk.type = 'checkbox';
           chk.value = g;
-          chk.checked = true; // デフォルトで全選択
+          chk.checked = true;
           chk.onchange = updateStatusDisplay;
 
           label.appendChild(chk);
@@ -294,7 +293,6 @@
       updateStatusDisplay();
     }
 
-    // チェックが入っている文法カテゴリの配列を取得
     function getSelectedGrammars() {
       const checkboxes = document.querySelectorAll('#grammar-checkbox-list input[type="checkbox"]:checked');
       return Array.from(checkboxes).map(chk => chk.value);
@@ -375,6 +373,13 @@
       showQuestion(selectedLevel);
     }
 
+    function makeBlankQuestion(english, targetWord) {
+      if (!english || !targetWord) return english;
+      const escapedTarget = targetWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(escapedTarget, 'gi');
+      return english.replace(regex, '( )');
+    }
+
     function showQuestion(selectedLevel) {
       if (currentIndex >= currentQuestions.length) {
         alert('このセットの問題がすべて完了しました！');
@@ -387,17 +392,20 @@
       
       document.getElementById('quiz-category').innerText = `${q.grammar} - ${levelText}`;
       document.getElementById('quiz-progress').innerText = `${currentIndex + 1} / ${currentQuestions.length} 問`;
-      document.getElementById('japanese-box').innerText = q.japanese ? `和訳: ${q.japanese}` : '';
       
-      if (currentMode === 'sort') {
-        document.getElementById('question-text').innerText = '正しい英文になるよう単語を並べ替えてください。';
+      document.getElementById('japanese-box').innerText = q.japanese || '';
+      
+      if (currentMode === 'choice' || currentMode === 'write') {
+        // レベル1(選択) & レベル2(入力): ターゲット単語部分を ( ) に置換した英文を表示
+        document.getElementById('question-text').innerText = makeBlankQuestion(q.english, q.targetWord);
       } else {
-        document.getElementById('question-text').innerText = q.english;
+        // レベル3(並べ替え): 問題テキストエリアは空（和訳と並べ替え用チップを表示）
+        document.getElementById('question-text').innerText = '';
       }
       
       document.getElementById('ui-choice').classList.add('hidden');
-      document.getElementById('ui-sort').classList.add('hidden');
       document.getElementById('ui-write').classList.add('hidden');
+      document.getElementById('ui-sort').classList.add('hidden');
 
       const feedback = document.getElementById('feedback');
       feedback.className = 'feedback hidden';
@@ -407,13 +415,14 @@
 
       if (currentMode === 'choice') {
         setupChoiceUI(q);
+      } else if (currentMode === 'write') {
+        setupWriteUI(q);
       } else if (currentMode === 'sort') {
         setupSortUI(q);
-      } else {
-        setupWriteUI(q);
       }
     }
 
+    // 1. レベル1: 選択肢UI
     function setupChoiceUI(q) {
       const choiceContainer = document.getElementById('ui-choice');
       choiceContainer.innerHTML = '';
@@ -442,6 +451,17 @@
       window.selectedOption = null;
     }
 
+    // 2. レベル2: 単語入力UI
+    function setupWriteUI(q) {
+      const writeContainer = document.getElementById('ui-write');
+      writeContainer.classList.remove('hidden');
+      const input = document.getElementById('user-answer');
+      input.value = '';
+      input.disabled = false;
+      input.focus();
+    }
+
+    // 3. レベル3: 並べ替えUI
     function setupSortUI(q) {
       const sortContainer = document.getElementById('ui-sort');
       sortContainer.classList.remove('hidden');
@@ -470,15 +490,6 @@
       });
     }
 
-    function setupWriteUI(q) {
-      const writeContainer = document.getElementById('ui-write');
-      writeContainer.classList.remove('hidden');
-      const input = document.getElementById('user-answer');
-      input.value = '';
-      input.disabled = false;
-      input.focus();
-    }
-
     async function checkAnswer() {
       const q = currentQuestions[currentIndex];
       const feedback = document.getElementById('feedback');
@@ -489,15 +500,15 @@
       if (currentMode === 'choice') {
         userAns = window.selectedOption || '';
         targetCorrectAns = q.targetWord;
+      } else if (currentMode === 'write') {
+        userAns = document.getElementById('user-answer').value.trim();
+        targetCorrectAns = q.targetWord;
       } else if (currentMode === 'sort') {
         const chips = document.getElementById('selected-words').querySelectorAll('.word-chip');
         const selectedList = [];
         chips.forEach(c => selectedList.push(c.innerText));
         userAns = selectedList.join(' ');
         targetCorrectAns = q.english;
-      } else {
-        userAns = document.getElementById('user-answer').value.trim();
-        targetCorrectAns = q.targetWord;
       }
 
       if (!userAns) {
