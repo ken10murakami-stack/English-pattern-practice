@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>英文法学習アプリ</title>
+  <title>文法レベル別学習アプリ</title>
   <style>
     :root {
       --primary-color: #4f46e5;
@@ -112,6 +112,12 @@
     .question-box { font-size: 1.15rem; font-weight: 600; line-height: 1.5; margin-bottom: 8px; }
     .japanese-text { font-size: 1rem; color: var(--text-main); font-weight: 600; margin-bottom: 16px; background: #eef2ff; padding: 12px; border-radius: 6px; }
 
+    /* （ ）内の空白幅を強制的に広げるCSS指定 */
+    .blank-space {
+      display: inline-block;
+      width: 3.5em; /* 4文字分相当の幅を保持 */
+    }
+
     /* レベル3 答え合わせ用カード */
     .answer-box {
       background-color: #f0fdf4; border: 1px solid #bbf7d0;
@@ -141,7 +147,7 @@
 
     <!-- ホーム画面 -->
     <div id="home-screen" class="card">
-      <h1>英文法学習アプリ</h1>
+      <h1>文法レベル別学習アプリ</h1>
       
       <div class="form-group">
         <label for="student-id">学籍番号 / 生徒ID</label>
@@ -415,13 +421,12 @@
       showQuestion(selectedLevel);
     }
 
-    // 括弧内のスペースを広げた置換処理
+    // （ ）内にCSS定義した幅固定のspanタグを挿入する処理
     function makeBlankQuestion(english, targetWord) {
       if (!english || !targetWord) return english;
       const escapedTarget = targetWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const regex = new RegExp(escapedTarget, 'gi');
-      // 全角スペース3つ分のゆったりした空欄を作成
-      return english.replace(regex, '(   )');
+      return english.replace(regex, '(<span class="blank-space"></span>)');
     }
 
     function showQuestion(selectedLevel) {
@@ -440,11 +445,10 @@
       document.getElementById('japanese-box').innerText = q.japanese || '';
       
       if (currentMode === 'choice') {
-        // レベル1: 英文のターゲット語をスペースの広い (   ) にして問題表示
-        document.getElementById('question-text').innerText = makeBlankQuestion(q.english, q.targetWord);
+        // innerHTML を使用してspanタグの広めの空欄を描画
+        document.getElementById('question-text').innerHTML = makeBlankQuestion(q.english, q.targetWord);
       } else {
-        // レベル2(並べ替え) & レベル3(書取り・ノート): 問題本文は空（和訳と各UIを表示）
-        document.getElementById('question-text').innerText = '';
+        document.getElementById('question-text').innerHTML = '';
       }
       
       document.getElementById('ui-choice').classList.add('hidden');
@@ -463,7 +467,6 @@
         submitBtn.classList.remove('hidden');
         setupSortUI(q);
       } else {
-        // レベル3は自己採点用ボタンを使用するため「回答する」ボタンを隠す
         submitBtn.classList.add('hidden');
         setupWriteUI(q);
       }
@@ -471,7 +474,6 @@
       document.getElementById('next-btn').classList.add('hidden');
     }
 
-    // 1. レベル1: 選択肢UI
     function setupChoiceUI(q) {
       const choiceContainer = document.getElementById('ui-choice');
       choiceContainer.innerHTML = '';
@@ -500,7 +502,6 @@
       window.selectedOption = null;
     }
 
-    // 2. レベル2: 並べ替えUI
     function setupSortUI(q) {
       const sortContainer = document.getElementById('ui-sort');
       sortContainer.classList.remove('hidden');
@@ -529,7 +530,6 @@
       });
     }
 
-    // 3. レベル3: ノート学習・自己採点UI
     function setupWriteUI(q) {
       const writeContainer = document.getElementById('ui-write');
       writeContainer.classList.remove('hidden');
