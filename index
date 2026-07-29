@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>中学英語 トレーニング</title>
+  <style>
+    :root {
+      --primary-color: #4f46e5;
+      --primary-hover: #4338ca;
+      --bg-color: #f8fafc;
+      --card-bg: #ffffff;
+      --text-main: #1e293b;
+      --text-sub: #64748b;
+      --success: #16a34a;
+      --error: #dc2626;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      display: flex;
+      justify-content: center;
+      padding: 20px;
+      min-height: 100vh;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 650px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      color: var(--primary-color);
+      margin-bottom: 8px;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      margin-bottom: 20px;
+    }
+
+    .level-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .btn {
+      padding: 12px 20px;
+      font-size: 1rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background-color: var(--primary-color);
+      color: white;
+    }
+
+    .btn:hover {
+      background-color: var(--primary-hover);
+    }
+
+    .btn-secondary {
+      background-color: #e2e8f0;
+      color: var(--text-main);
+    }
+
+    .btn-secondary:hover {
+      background-color: #cbd5e1;
+    }
+
+    .btn-outline {
+      background-color: transparent;
+      border: 2px solid var(--primary-color);
+      color: var(--primary-color);
+    }
+
+    .btn-outline:hover {
+      background-color: #eef2ff;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .progress {
+      font-size: 0.875rem;
+      color: var(--text-sub);
+      margin-bottom: 12px;
+      font-weight: 600;
+    }
+
+    .japanese-prompt {
+      font-size: 1.25rem;
+      font-weight: bold;
+      margin-bottom: 20px;
+      color: var(--text-main);
+    }
+
+    .sentence-display {
+      font-size: 1.35rem;
+      margin-bottom: 24px;
+      line-height: 1.6;
+      word-spacing: 4px;
+    }
+
+    .blank-box {
+      display: inline-block;
+      min-width: 80px;
+      border-bottom: 3px solid var(--primary-color);
+      text-align: center;
+      color: var(--primary-color);
+      font-weight: bold;
+      padding: 0 8px;
+    }
+
+    /* レベル1: 選択ボタン */
+    .options-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .option-btn {
+      padding: 12px;
+      font-size: 1.1rem;
+      background-color: #f1f5f9;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .option-btn:hover {
+      border-color: var(--primary-color);
+      background-color: #eef2ff;
+    }
+
+    .option-btn.selected {
+      background-color: var(--primary-color);
+      color: white;
+      border-color: var(--primary-color);
+    }
+
+    /* レベル2: 単語並べ替え */
+    .answer-pool {
+      min-height: 54px;
+      border: 2px dashed #cbd5e1;
+      border-radius: 8px;
+      padding: 8px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 16px;
+      background-color: #fafafa;
+    }
+
+    .word-bank {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+
+    .word-chip {
+      padding: 8px 14px;
+      background-color: #e2e8f0;
+      border: none;
+      border-radius: 6px;
+      font-size: 1.1rem;
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    .word-chip:hover {
+      background-color: #cbd5e1;
+    }
+
+    /* フィードバック */
+    .feedback {
+      margin-top: 16px;
+      padding: 12px;
+      border-radius: 8px;
+      font-weight: bold;
+      font-size: 1.1rem;
+    }
+
+    .feedback.correct {
+      background-color: #dcfce7;
+      color: var(--success);
+    }
+
+    .feedback.incorrect {
+      background-color: #fee2e2;
+      color: var(--error);
+    }
+
+    .action-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .action-row .btn {
+      flex: 1;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <h1>英語グラマー・トレーニング</h1>
+      <p style="color: var(--text-sub); font-size: 0.9rem;">1つの例文から3パターンでアプローチ</p>
+    </header>
+
+    <!-- TOP: レベル選択 -->
+    <div id="level-select-card" class="card">
+      <h2 style="font-size: 1.1rem; margin-bottom: 16px;">学習モードを選んでください</h2>
+      <div class="level-buttons">
+        <button class="btn" onclick="startLevel(1)">
+          レベル 1：穴埋め選択
+          <div style="font-weight: normal; font-size: 0.8rem; opacity: 0.9;">（ ）内の適切な単語を選びます</div>
+        </button>
+        <button class="btn btn-outline" onclick="startLevel(2)">
+          レベル 2：単語の並べ替え
+          <div style="font-weight: normal; font-size: 0.8rem; opacity: 0.9;">バラバラの単語を正しい順番に並べ替えます</div>
+        </button>
+        <button class="btn btn-secondary" onclick="startLevel(3)">
+          レベル 3：ノート書き取り
+          <div style="font-weight: normal; font-size: 0.8rem; opacity: 0.9;">日本文を見てノートに書き取り自己採点します</div>
+        </button>
+      </div>
+    </div>
+
+    <!-- MAIN: 問題画面 -->
+    <div id="quiz-card" class="card hidden">
+      <div id="progress-text" class="progress"></div>
+      <div id="japanese-text" class="japanese-prompt"></div>
+
+      <!-- レベル1の表示 -->
+      <div id="level1-container" class="hidden">
+        <div id="l1-sentence" class="sentence-display"></div>
+        <div id="l1-options" class="options-grid"></div>
+      </div>
+
+      <!-- レベル2の表示 -->
+      <div id="level2-container" class="hidden">
+        <div id="l2-answer-pool" class="answer-pool"></div>
+        <div id="l2-word-bank" class="word-bank"></div>
+        <button class="btn btn-secondary" style="font-size: 0.85rem; padding: 6px 12px;" onclick="resetLevel2Words()">やり直す</button>
+      </div>
+
+      <!-- レベル3の表示 -->
+      <div id="level3-container" class="hidden">
+        <p style="color: var(--text-sub); margin-bottom: 16px;">ノートに英文を書いてから「答え合わせ」を押してください。</p>
+        <div id="l3-answer-box" class="sentence-display hidden" style="color: var(--primary-color); background: #eef2ff; padding: 12px; border-radius: 8px;"></div>
+      </div>
+
+      <!-- 判定フィードバック -->
+      <div id="feedback-box" class="feedback hidden"></div>
+
+      <!-- アクションボタン -->
+      <div class="action-row">
+        <button id="check-btn" class="btn" onclick="checkAnswer()">答え合わせ</button>
+        <button id="next-btn" class="btn hidden" onclick="nextQuestion()">次の問題へ</button>
+      </div>
+      <button class="btn btn-secondary" style="width: 100%; margin-top: 12px; font-size: 0.85rem;" onclick="backToTop()">モード選択に戻る</button>
+    </div>
+  </div>
+
+  <script>
+    // ★ここに取得したGASのWebアプリURLを貼り付けてください
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbyap7P9TT4ZwBvjoqhJ_8GYt7XZUFOF0zRWcbOj1A3feCHYqA0yTSz-q8b0OhvIQJbX/exec";
+
+    let questions = [];
+    let currentIndex = 0;
+    let currentLevel = 1;
+    
+    // レベル別状態保持
+    let l1SelectedWord = "";
+    let l2SelectedWords = [];
+    let l2OriginalWords = [];
+
+    // GASから問題データをロード
+    async function loadQuestions() {
+      try {
+        const response = await fetch(GAS_URL);
+        questions = await response.json();
+      } catch (error) {
+        alert("データの読み込みに失敗しました。GASのURLを確認してください。");
+      }
+    }
+    loadQuestions();
+
+    function startLevel(lvl) {
+      if (questions.length === 0) {
+        alert("問題を読み込み中です。少々お待ちください。");
+        return;
+      }
+      currentLevel = lvl;
+      currentIndex = 0;
+      
+      document.getElementById('level-select-card').classList.add('hidden');
+      document.getElementById('quiz-card').classList.remove('hidden');
+      
+      showQuestion();
+    }
+
+    function showQuestion() {
+      const q = questions[currentIndex];
+      
+      // 共通画面の更新
+      document.getElementById('progress-text').innerText = `レベル ${currentLevel} - 第 ${currentIndex + 1} / ${questions.length} 問`;
+      document.getElementById('japanese-text').innerText = q.Japanese;
+      
+      const feedbackBox = document.getElementById('feedback-box');
+      feedbackBox.classList.add('hidden');
+      feedbackBox.className = "feedback hidden";
+      
+      document.getElementById('check-btn').classList.remove('hidden');
+      document.getElementById('next-btn').classList.add('hidden');
+
+      // レベルごとのUI切り替え
+      document.getElementById('level1-container').classList.add('hidden');
+      document.getElementById('level2-container').classList.add('hidden');
+      document.getElementById('level3-container').classList.add('hidden');
+
+      if (currentLevel === 1) setupLevel1(q);
+      else if (currentLevel === 2) setupLevel2(q);
+      else if (currentLevel === 3) setupLevel3(q);
+    }
+
+    /* --- レベル1 制御 --- */
+    function setupLevel1(q) {
+      document.getElementById('level1-container').classList.remove('hidden');
+      l1SelectedWord = "";
+
+      // TargetWord部分を ( ) に置換
+      const displaySentence = q.FullSentence.replace(q.TargetWord, `<span id="l1-blank" class="blank-box">（ ）</span>`);
+      document.getElementById('l1-sentence').innerHTML = displaySentence;
+
+      // 選択肢（正解 + ダミー）をシャッフル
+      const options = [q.TargetWord, q.Dummy1, q.Dummy2].filter(Boolean).sort(() => Math.random() - 0.5);
+      
+      const optionsContainer = document.getElementById('l1-options');
+      optionsContainer.innerHTML = "";
+
+      options.forEach(opt => {
+        const btn = document.createElement('button');
+        btn.className = 'option-btn';
+        btn.innerText = opt;
+        btn.onclick = () => {
+          document.querySelectorAll('.option-btn').forEach(b => b.classList.remove('selected'));
+          btn.classList.add('selected');
+          l1SelectedWord = opt;
+          document.getElementById('l1-blank').innerText = opt;
+        };
+        optionsContainer.appendChild(btn);
+      });
+    }
+
+    /* --- レベル2 制御 --- */
+    function setupLevel2(q) {
+      document.getElementById('level2-container').classList.remove('hidden');
+      l2SelectedWords = [];
+
+      // 英文をスペース区切りで単語に分解してシャッフル
+      l2OriginalWords = q.FullSentence.split(' ').map(w => w.trim()).sort(() => Math.random() - 0.5);
+
+      renderLevel2Words();
+    }
+
+    function renderLevel2Words() {
+      const pool = document.getElementById('l2-answer-pool');
+      const bank = document.getElementById('l2-word-bank');
+      pool.innerHTML = "";
+      bank.innerHTML = "";
+
+      // 選択された単語
+      l2SelectedWords.forEach((word, idx) => {
+        const chip = document.createElement('button');
+        chip.className = 'word-chip';
+        chip.style.backgroundColor = '#c7d2fe';
+        chip.innerText = word;
+        chip.onclick = () => {
+          l2SelectedWords.splice(idx, 1);
+          renderLevel2Words();
+        };
+        pool.appendChild(chip);
+      });
+
+      // まだ選択されていない単語
+      let tempBank = [...l2OriginalWords];
+      l2SelectedWords.forEach(w => {
+        const index = tempBank.indexOf(w);
+        if (index > -1) tempBank.splice(index, 1);
+      });
+
+      tempBank.forEach(word => {
+        const chip = document.createElement('button');
+        chip.className = 'word-chip';
+        chip.innerText = word;
+        chip.onclick = () => {
+          l2SelectedWords.push(word);
+          renderLevel2Words();
+        };
+        bank.appendChild(chip);
+      });
+    }
+
+    function resetLevel2Words() {
+      l2SelectedWords = [];
+      renderLevel2Words();
+    }
+
+    /* --- レベル3 制御 --- */
+    function setupLevel3(q) {
+      document.getElementById('level3-container').classList.remove('hidden');
+      const answerBox = document.getElementById('l3-answer-box');
+      answerBox.classList.add('hidden');
+      answerBox.innerText = q.FullSentence;
+    }
+
+    /* --- 答え合わせ処理 --- */
+    function checkAnswer() {
+      const q = questions[currentIndex];
+      const feedbackBox = document.getElementById('feedback-box');
+      feedbackBox.classList.remove('hidden');
+
+      if (currentLevel === 1) {
+        if (!l1SelectedWord) return alert("選択肢を選んでください");
+        
+        if (l1SelectedWord === q.TargetWord) {
+          feedbackBox.className = "feedback correct";
+          feedbackBox.innerText = "正解です！";
+        } else {
+          feedbackBox.className = "feedback incorrect";
+          feedbackBox.innerText = `不正解… 正解は: ${q.TargetWord}`;
+        }
+      } 
+      else if (currentLevel === 2) {
+        const userSentence = l2SelectedWords.join(' ');
+        // 記号や大文字小文字の違いを考慮して比較
+        const cleanUser = userSentence.replace(/[.,?]/g, '').toLowerCase();
+        const cleanTarget = q.FullSentence.replace(/[.,?]/g, '').toLowerCase();
+
+        if (cleanUser === cleanTarget) {
+          feedbackBox.className = "feedback correct";
+          feedbackBox.innerText = "正解です！";
+        } else {
+          feedbackBox.className = "feedback incorrect";
+          feedbackBox.innerText = `不正解… 正解: ${q.FullSentence}`;
+        }
+      } 
+      else if (currentLevel === 3) {
+        document.getElementById('l3-answer-box').classList.remove('hidden');
+        feedbackBox.className = "feedback correct";
+        feedbackBox.innerText = "ノートの英文と見比べて自分で採点してみよう！";
+      }
+
+      document.getElementById('check-btn').classList.add('hidden');
+      document.getElementById('next-btn').classList.remove('hidden');
+    }
+
+    function nextQuestion() {
+      currentIndex++;
+      if (currentIndex < questions.length) {
+        showQuestion();
+      } else {
+        alert("このモードの問題はすべて終了しました！");
+        backToTop();
+      }
+    }
+
+    function backToTop() {
+      document.getElementById('quiz-card').classList.add('hidden');
+      document.getElementById('level-select-card').classList.remove('hidden');
+    }
+  </script>
+</body>
+</html>
