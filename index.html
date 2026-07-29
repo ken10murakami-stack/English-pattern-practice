@@ -13,7 +13,9 @@
       --text-main: #1f2937;
       --text-muted: #6b7280;
       --success-color: #10b981;
+      --success-hover: #059669;
       --error-color: #ef4444;
+      --error-hover: #dc2626;
       --warning-color: #f59e0b;
       --border-color: #e5e7eb;
     }
@@ -76,6 +78,11 @@
     .btn-primary:hover { background-color: var(--primary-hover); }
     .btn-warning { background-color: var(--warning-color); color: white; }
     .btn-secondary { background-color: #e5e7eb; color: var(--text-main); }
+    
+    .btn-success { background-color: var(--success-color); color: white; }
+    .btn-success:hover { background-color: var(--success-hover); }
+    .btn-danger { background-color: var(--error-color); color: white; }
+    .btn-danger:hover { background-color: var(--error-hover); }
 
     .options-grid { display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 16px; }
     .btn-option {
@@ -96,7 +103,19 @@
 
     .quiz-info { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px; display: flex; justify-content: space-between; }
     .question-box { font-size: 1.15rem; font-weight: 600; line-height: 1.5; margin-bottom: 8px; }
-    .japanese-text { font-size: 0.95rem; color: var(--text-muted); font-weight: 500; margin-bottom: 20px; }
+    .japanese-text { font-size: 1rem; color: var(--text-main); font-weight: 600; margin-bottom: 16px; background: #eef2ff; padding: 12px; border-radius: 6px; }
+
+    /* レベル3 答え合わせ用カード */
+    .answer-box {
+      background-color: #f0fdf4; border: 1px solid #bbf7d0;
+      border-radius: 8px; padding: 16px; margin-bottom: 16px;
+    }
+    .answer-box-title { font-size: 0.85rem; font-weight: 700; color: #166534; margin-bottom: 6px; }
+    .answer-box-content { font-size: 1.15rem; font-weight: 700; color: #15803d; line-height: 1.4; }
+    .answer-box-sub { font-size: 0.9rem; color: #166534; margin-top: 6px; }
+
+    .self-eval-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+
     .feedback { margin: 16px 0; padding: 12px; border-radius: 6px; font-weight: 600; text-align: center; }
     .feedback.correct { background-color: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
     .feedback.incorrect { background-color: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
@@ -138,8 +157,8 @@
         <label for="level-select">レベル（学習形式）</label>
         <select id="level-select" onchange="updateStatusDisplay()">
           <option value="1">レベル 1 （選択問題）</option>
-          <option value="2">レベル 2 （単語入力）</option>
-          <option value="3">レベル 3 （並べ替え）</option>
+          <option value="2">レベル 2 （並べ替え）</option>
+          <option value="3">レベル 3 （書取り・ノート学習）</option>
         </select>
       </div>
 
@@ -166,22 +185,40 @@
         <span id="quiz-progress">1 / 10 問</span>
       </div>
 
-      <!-- 問題文表示エリア（英文の上に、和訳を下に） -->
+      <!-- 問題文表示エリア -->
       <div class="question-box" id="question-text"></div>
       <div id="japanese-box" class="japanese-text"></div>
 
       <!-- 1. レベル1: 選択問題UI -->
       <div id="ui-choice" class="options-grid hidden"></div>
 
-      <!-- 2. レベル2: 単語入力UI -->
-      <div id="ui-write" class="form-group hidden">
-        <input type="text" id="user-answer" placeholder="( )に入る単語を入力..." autocomplete="off">
-      </div>
-
-      <!-- 3. レベル3: 並べ替えUI -->
+      <!-- 2. レベル2: 並べ替えUI -->
       <div id="ui-sort" class="hidden">
         <div id="selected-words" class="word-container"></div>
         <div id="pool-words" class="word-container"></div>
+      </div>
+
+      <!-- 3. レベル3: ノート自己採点UI（タイピング機能なし） -->
+      <div id="ui-write" class="hidden">
+        <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:12px;">
+          ※ ノートに英文を書いてから「答えを表示する」を押してください。
+        </p>
+        <button id="show-answer-btn" class="btn-primary" onclick="revealSelfAnswer()">答えを表示する</button>
+
+        <div id="answer-reveal-area" class="hidden">
+          <div class="answer-box">
+            <div class="answer-box-title">正解（模範英文）</div>
+            <div class="answer-box-content" id="correct-english-text"></div>
+            <div class="answer-box-sub" id="correct-target-text"></div>
+          </div>
+          <p style="font-size:0.9rem; font-weight:600; text-align:center; margin-bottom:10px;">
+            自分のノートと見比べて採点してください
+          </p>
+          <div class="self-eval-buttons">
+            <button class="btn-success" onclick="handleSelfEval(true)">⭕ 正解できた</button>
+            <button class="btn-danger" onclick="handleSelfEval(false)">❌ 間違えた</button>
+          </div>
+        </div>
       </div>
 
       <div id="feedback" class="feedback hidden"></div>
@@ -196,7 +233,7 @@
 
   <script>
     // デプロイしたGASの「ウェブアプリURL」を設定してください
-    const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbxOS2bzLFYWi0Pi3ntLQbIIMqX2g1mPYdJyhScV44rcdD6bfcD9VcTbHE_VsTuH8eVz/exec';
+    const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbyXlGhqdxDQKlbyYa4JtcRszanZ1Zk574zljYUW9WfRP1aljlYdP9te6XoHrEkv8vuJ/exec';
 
     let homeData = null;
     let currentQuestions = [];
@@ -395,31 +432,36 @@
       
       document.getElementById('japanese-box').innerText = q.japanese || '';
       
-      if (currentMode === 'choice' || currentMode === 'write') {
-        // レベル1(選択) & レベル2(入力): ターゲット単語部分を ( ) に置換した英文を表示
+      if (currentMode === 'choice') {
+        // レベル1: 英文のターゲット語を( )にして問題表示
         document.getElementById('question-text').innerText = makeBlankQuestion(q.english, q.targetWord);
       } else {
-        // レベル3(並べ替え): 問題テキストエリアは空（和訳と並べ替え用チップを表示）
+        // レベル2(並べ替え) & レベル3(書取り・ノート): 問題本文は空（和訳と各UIを表示）
         document.getElementById('question-text').innerText = '';
       }
       
       document.getElementById('ui-choice').classList.add('hidden');
-      document.getElementById('ui-write').classList.add('hidden');
       document.getElementById('ui-sort').classList.add('hidden');
+      document.getElementById('ui-write').classList.add('hidden');
 
       const feedback = document.getElementById('feedback');
       feedback.className = 'feedback hidden';
 
-      document.getElementById('submit-btn').classList.remove('hidden');
-      document.getElementById('next-btn').classList.add('hidden');
+      const submitBtn = document.getElementById('submit-btn');
 
       if (currentMode === 'choice') {
+        submitBtn.classList.remove('hidden');
         setupChoiceUI(q);
-      } else if (currentMode === 'write') {
-        setupWriteUI(q);
       } else if (currentMode === 'sort') {
+        submitBtn.classList.remove('hidden');
         setupSortUI(q);
+      } else {
+        // レベル3は自己採点用ボタンを使用するため「回答する」ボタンを隠す
+        submitBtn.classList.add('hidden');
+        setupWriteUI(q);
       }
+
+      document.getElementById('next-btn').classList.add('hidden');
     }
 
     // 1. レベル1: 選択肢UI
@@ -451,17 +493,7 @@
       window.selectedOption = null;
     }
 
-    // 2. レベル2: 単語入力UI
-    function setupWriteUI(q) {
-      const writeContainer = document.getElementById('ui-write');
-      writeContainer.classList.remove('hidden');
-      const input = document.getElementById('user-answer');
-      input.value = '';
-      input.disabled = false;
-      input.focus();
-    }
-
-    // 3. レベル3: 並べ替えUI
+    // 2. レベル2: 並べ替えUI
     function setupSortUI(q) {
       const sortContainer = document.getElementById('ui-sort');
       sortContainer.classList.remove('hidden');
@@ -490,6 +522,50 @@
       });
     }
 
+    // 3. レベル3: ノート学習・自己採点UI
+    function setupWriteUI(q) {
+      const writeContainer = document.getElementById('ui-write');
+      writeContainer.classList.remove('hidden');
+
+      document.getElementById('show-answer-btn').classList.remove('hidden');
+      document.getElementById('answer-reveal-area').classList.add('hidden');
+      
+      document.getElementById('correct-english-text').innerText = q.english;
+      document.getElementById('correct-target-text').innerText = q.targetWord ? `(ターゲット単語: ${q.targetWord})` : '';
+    }
+
+    function revealSelfAnswer() {
+      document.getElementById('show-answer-btn').classList.add('hidden');
+      document.getElementById('answer-reveal-area').classList.remove('hidden');
+    }
+
+    function handleSelfEval(isCorrect) {
+      const q = currentQuestions[currentIndex];
+      const feedback = document.getElementById('feedback');
+      const studentId = getStudentId();
+
+      document.getElementById('answer-reveal-area').classList.add('hidden');
+
+      if (isCorrect) {
+        feedback.innerText = '⭕ 正解！素晴らしい！';
+        feedback.className = 'feedback correct';
+        
+        apiPost({
+          action: 'markAsCleared',
+          studentId: studentId,
+          questionId: q.id,
+          mode: currentMode
+        });
+      } else {
+        feedback.innerText = '❌ 次回頑張りましょう！';
+        feedback.className = 'feedback incorrect';
+        currentQuestions.push(q);
+      }
+
+      document.getElementById('next-btn').classList.remove('hidden');
+      document.getElementById('next-btn').focus();
+    }
+
     async function checkAnswer() {
       const q = currentQuestions[currentIndex];
       const feedback = document.getElementById('feedback');
@@ -500,9 +576,6 @@
       if (currentMode === 'choice') {
         userAns = window.selectedOption || '';
         targetCorrectAns = q.targetWord;
-      } else if (currentMode === 'write') {
-        userAns = document.getElementById('user-answer').value.trim();
-        targetCorrectAns = q.targetWord;
       } else if (currentMode === 'sort') {
         const chips = document.getElementById('selected-words').querySelectorAll('.word-chip');
         const selectedList = [];
@@ -512,7 +585,7 @@
       }
 
       if (!userAns) {
-        alert('解答を選択または入力してください。');
+        alert('解答を選択してください。');
         return;
       }
 
