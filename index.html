@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <base target="_top">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>文法学習アプリ</title>
+  <title>文法多機能学習アプリ</title>
   <style>
     :root {
       --primary-color: #4f46e5;
@@ -16,211 +16,94 @@
       --success-color: #10b981;
       --error-color: #ef4444;
       --warning-color: #f59e0b;
-      --warning-hover: #d97706;
       --border-color: #e5e7eb;
     }
 
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background-color: var(--bg-color);
       color: var(--text-main);
       padding: 20px 16px;
-      display: flex;
-      justify-content: center;
-      min-height: 100vh;
+      display: flex; justify-content: center; min-height: 100vh;
     }
-
-    .container {
-      width: 100%;
-      max-width: 500px;
-    }
-
+    .container { width: 100%; max-width: 500px; }
     .card {
-      background: var(--card-bg);
-      border-radius: 12px;
-      padding: 24px;
-      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-      margin-bottom: 16px;
+      background: var(--card-bg); border-radius: 12px; padding: 24px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); margin-bottom: 16px;
     }
-
-    .hidden {
-      display: none !important;
-    }
-
-    h1, h2, h3 {
-      font-weight: 700;
-      color: var(--text-main);
-      margin-bottom: 16px;
-    }
-
-    h1 { font-size: 1.5rem; text-align: center; }
-    h2 { font-size: 1.25rem; border-bottom: 2px solid var(--border-color); padding-bottom: 8px; }
-
-    .form-group {
-      margin-bottom: 16px;
-    }
-
-    label {
-      display: block;
-      font-size: 0.875rem;
-      font-weight: 600;
-      color: var(--text-muted);
-      margin-bottom: 6px;
-    }
-
+    .hidden { display: none !important; }
+    h1 { font-size: 1.5rem; text-align: center; margin-bottom: 20px; }
+    .form-group { margin-bottom: 16px; }
+    label { display: block; font-size: 0.875rem; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }
     select, input[type="text"] {
-      width: 100%;
-      padding: 10px 12px;
-      border: 1px solid var(--border-color);
-      border-radius: 6px;
-      font-size: 1rem;
-      outline: none;
-      transition: border-color 0.2s;
+      width: 100%; padding: 10px 12px; border: 1px solid var(--border-color);
+      border-radius: 6px; font-size: 1rem; outline: none;
     }
-
-    select:focus, input[type="text"]:focus {
-      border-color: var(--primary-color);
-    }
-
     .status-container {
-      background-color: #f9fafb;
-      border: 1px solid var(--border-color);
-      border-radius: 8px;
-      padding: 16px;
-      margin-bottom: 20px;
+      background-color: #f9fafb; border: 1px solid var(--border-color);
+      border-radius: 8px; padding: 16px; margin-bottom: 20px;
     }
-
-    .status-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 8px;
-      font-size: 0.9rem;
-      font-weight: 600;
-    }
-
-    .progress-bar {
-      background: #e5e7eb;
-      border-radius: 9999px;
-      height: 12px;
-      width: 100%;
-      overflow: hidden;
-    }
-
-    .progress-fill {
-      background: var(--success-color);
-      height: 100%;
-      width: 0%;
-      transition: width 0.4s ease;
-    }
-
-    .btn-group {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
+    .status-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 0.9rem; font-weight: 600; }
+    .progress-bar { background: #e5e7eb; border-radius: 9999px; height: 12px; width: 100%; overflow: hidden; }
+    .progress-fill { background: var(--success-color); height: 100%; width: 0%; transition: width 0.4s ease; }
+    
+    .btn-group { display: flex; flex-direction: column; gap: 10px; }
     button {
-      width: 100%;
-      padding: 12px;
-      border: none;
-      border-radius: 6px;
-      font-size: 1rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background-color 0.2s, opacity 0.2s;
+      width: 100%; padding: 12px; border: none; border-radius: 6px;
+      font-size: 1rem; font-weight: 600; cursor: pointer; transition: background-color 0.2s;
+    }
+    .btn-primary { background-color: var(--primary-color); color: white; }
+    .btn-primary:hover { background-color: var(--primary-hover); }
+    .btn-warning { background-color: var(--warning-color); color: white; }
+    .btn-secondary { background-color: #e5e7eb; color: var(--text-main); }
+    
+    .options-grid { display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 16px; }
+    .btn-option {
+      background-color: #f3f4f6; border: 1px solid var(--border-color);
+      color: var(--text-main); text-align: left; padding: 12px 16px; border-radius: 6px;
+      font-size: 1rem; cursor: pointer;
+    }
+    .btn-option:hover { background-color: #e5e7eb; }
+
+    .word-container {
+      display: flex; flex-wrap: wrap; gap: 8px; min-height: 50px;
+      padding: 10px; border: 2px dashed var(--border-color); border-radius: 8px; margin-bottom: 16px;
+    }
+    .word-chip {
+      background-color: #e0e7ff; color: #3730a3; padding: 8px 12px;
+      border-radius: 6px; font-weight: 600; cursor: pointer; user-select: none;
     }
 
-    button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-
-    .btn-primary {
-      background-color: var(--primary-color);
-      color: white;
-    }
-    .btn-primary:hover:not(:disabled) { background-color: var(--primary-hover); }
-
-    .btn-warning {
-      background-color: var(--warning-color);
-      color: white;
-    }
-    .btn-warning:hover:not(:disabled) { background-color: var(--warning-hover); }
-
-    .btn-secondary {
-      background-color: #e5e7eb;
-      color: var(--text-main);
-    }
-    .btn-secondary:hover:not(:disabled) { background-color: #d1d5db; }
-
-    /* クイズ画面固有 */
-    .quiz-info {
-      font-size: 0.85rem;
-      color: var(--text-muted);
-      margin-bottom: 12px;
-      display: flex;
-      justify-content: space-between;
-    }
-
-    .question-box {
-      font-size: 1.15rem;
-      font-weight: 600;
-      line-height: 1.5;
-      margin-bottom: 20px;
-      min-height: 60px;
-    }
-
-    .feedback {
-      margin: 16px 0;
-      padding: 12px;
-      border-radius: 6px;
-      font-weight: 600;
-      text-align: center;
-      font-size: 1rem;
-    }
-
-    .feedback.correct {
-      background-color: #ecfdf5;
-      color: #065f46;
-      border: 1px solid #a7f3d0;
-    }
-
-    .feedback.incorrect {
-      background-color: #fef2f2;
-      color: #991b1b;
-      border: 1px solid #fecaca;
-    }
-
+    .quiz-info { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px; display: flex; justify-content: space-between; }
+    .japanese-text { font-size: 1rem; color: var(--text-main); font-weight: 600; margin-bottom: 8px; background: #eef2ff; padding: 10px; border-radius: 6px; }
+    .question-box { font-size: 1.15rem; font-weight: 600; line-height: 1.5; margin-bottom: 20px; }
+    .feedback { margin: 16px 0; padding: 12px; border-radius: 6px; font-weight: 600; text-align: center; }
+    .feedback.correct { background-color: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+    .feedback.incorrect { background-color: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+    
     .loading-overlay {
-      position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(255, 255, 255, 0.8);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      font-weight: 600;
-      color: var(--primary-color);
-      z-index: 100;
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(255, 255, 255, 0.8); display: flex;
+      justify-content: center; align-items: center; font-weight: 600;
+      color: var(--primary-color); z-index: 100;
     }
   </style>
 </head>
 <body>
 
   <div class="container">
-    <!-- ローディング表示 -->
     <div id="loading" class="loading-overlay">データを読み込み中...</div>
 
     <!-- ホーム画面 -->
     <div id="home-screen" class="card">
-      <h1>文法学習アプリ</h1>
+      <h1>文法多機能学習アプリ</h1>
       
+      <div class="form-group">
+        <label for="student-id">学籍番号 / 生徒ID</label>
+        <input type="text" id="student-id" placeholder="例: A12345" onchange="onStudentIdChange()">
+      </div>
+
       <div class="form-group">
         <label for="grammar-select">文法カテゴリ</label>
         <select id="grammar-select" onchange="updateStatusDisplay()">
@@ -235,11 +118,19 @@
         </select>
       </div>
 
-      <!-- 達成状況表示 -->
+      <div class="form-group">
+        <label for="mode-select">学習形式</label>
+        <select id="mode-select">
+          <option value="choice">選択問題（4択）</option>
+          <option value="sort">並べ替え問題</option>
+          <option value="write">書取り問題（タイピング）</option>
+        </select>
+      </div>
+
       <div class="status-container">
         <div class="status-header">
-          <span>達成状況</span>
-          <span id="status-text">0 / 0 問 (0%)</span>
+          <span>全形式の総合達成率</span>
+          <span id="status-text">0 / 0 (0%)</span>
         </div>
         <div class="progress-bar">
           <div id="progress-fill" class="progress-fill"></div>
@@ -259,12 +150,23 @@
         <span id="quiz-progress">1 / 10 問</span>
       </div>
 
-      <div class="question-box" id="question-text">
-        問題文がここに表示されます。
+      <div id="japanese-box" class="japanese-text"></div>
+      <div class="question-box" id="question-text"></div>
+
+      <!-- 1. 選択問題UI -->
+      <div id="ui-choice" class="options-grid hidden"></div>
+
+      <!-- 2. 並べ替えUI -->
+      <div id="ui-sort" class="hidden">
+        <label>回答エリア（タップで戻す）:</label>
+        <div id="selected-words" class="word-container"></div>
+        <label>単語プール（タップで選択）:</label>
+        <div id="pool-words" class="word-container"></div>
       </div>
 
-      <div class="form-group">
-        <input type="text" id="user-answer" placeholder="解答を入力..." autocomplete="off">
+      <!-- 3. 書取りUI -->
+      <div id="ui-write" class="form-group hidden">
+        <input type="text" id="user-answer" placeholder="ターゲット単語を入力..." autocomplete="off">
       </div>
 
       <div id="feedback" class="feedback hidden"></div>
@@ -281,9 +183,11 @@
     let homeData = null;
     let currentQuestions = [];
     let currentIndex = 0;
+    let currentMode = 'choice';
 
-    // 初期化（ページロード時）
     window.onload = function() {
+      const savedId = localStorage.getItem('student_id') || '';
+      document.getElementById('student-id').value = savedId;
       fetchHomeData();
     };
 
@@ -297,13 +201,23 @@
       document.getElementById('loading').classList.add('hidden');
     }
 
-    // データ取得
+    function onStudentIdChange() {
+      const studentId = getStudentId();
+      if (studentId) localStorage.setItem('student_id', studentId);
+      fetchHomeData();
+    }
+
+    function getStudentId() {
+      return document.getElementById('student-id').value.trim();
+    }
+
     function fetchHomeData() {
+      const studentId = getStudentId();
       showLoading('データを読み込み中...');
       google.script.run
         .withSuccessHandler(initHome)
         .withFailureHandler(handleError)
-        .getHomeData();
+        .getHomeData(studentId);
     }
 
     function initHome(data) {
@@ -311,22 +225,22 @@
       const gSelect = document.getElementById('grammar-select');
       const lSelect = document.getElementById('level-select');
 
-      // 選択肢の初期化
+      const currentG = gSelect.value;
+      const currentL = lSelect.value;
+
       gSelect.innerHTML = '<option value="ALL">すべて</option>';
       lSelect.innerHTML = '<option value="ALL">すべて</option>';
 
-      if (data.grammars) {
-        data.grammars.forEach(g => gSelect.add(new Option(g, g)));
-      }
-      if (data.levels) {
-        data.levels.forEach(l => lSelect.add(new Option('Level ' + l, l)));
-      }
+      if (data.grammars) data.grammars.forEach(g => gSelect.add(new Option(g, g)));
+      if (data.levels) data.levels.forEach(l => lSelect.add(new Option('Level ' + l, l)));
+
+      gSelect.value = currentG;
+      lSelect.value = currentL;
 
       updateStatusDisplay();
       hideLoading();
     }
 
-    // 達成状況の表示更新
     function updateStatusDisplay() {
       if (!homeData || !homeData.stats) return;
 
@@ -341,36 +255,39 @@
         const g = parts[0];
         const l = parts[1];
 
-        const matchG = (selectedG === 'ALL' || g === selectedG);
-        const matchL = (selectedL === 'ALL' || String(l) === String(selectedL));
-
-        if (matchG && matchL) {
+        if ((selectedG === 'ALL' || g === selectedG) && (selectedL === 'ALL' || String(l) === String(selectedL))) {
           total += homeData.stats[key].total || 0;
           cleared += homeData.stats[key].cleared || 0;
         }
       });
 
       const percent = total > 0 ? Math.round((cleared / total) * 100) : 0;
-      document.getElementById('status-text').innerText = `${cleared} / ${total} 問完了 (${percent}%)`;
+      document.getElementById('status-text').innerText = `${cleared} / ${total} (総合 ${percent}%)`;
       document.getElementById('progress-fill').style.width = percent + '%';
     }
 
-    // 学習開始
     function startLearning() {
+      const studentId = getStudentId();
+      if (!studentId) {
+        alert('学籍番号（または生徒ID）を入力してください。');
+        return;
+      }
+
       const g = document.getElementById('grammar-select').value;
       const l = document.getElementById('level-select').value;
+      currentMode = document.getElementById('mode-select').value;
 
       showLoading('問題を準備中...');
       google.script.run
         .withSuccessHandler(setupQuiz)
         .withFailureHandler(handleError)
-        .getQuestions(g, l);
+        .getQuestions(studentId, g, l, currentMode);
     }
 
     function setupQuiz(questions) {
       hideLoading();
       if (!questions || questions.length === 0) {
-        alert('該当する未正解の問題がありません。すべての問題をクリアしているか、条件を変更してください。');
+        alert('この学習条件で未正解の問題がありません！');
         return;
       }
 
@@ -385,7 +302,7 @@
 
     function showQuestion() {
       if (currentIndex >= currentQuestions.length) {
-        alert('このセットの未正解問題がすべて終了しました！');
+        alert('このセットの問題がすべて完了しました！');
         backToHome();
         return;
       }
@@ -394,47 +311,136 @@
       
       document.getElementById('quiz-category').innerText = `${q.grammar} - Level ${q.level}`;
       document.getElementById('quiz-progress').innerText = `${currentIndex + 1} / ${currentQuestions.length} 問`;
-      document.getElementById('question-text').innerText = q.question;
+      document.getElementById('japanese-box').innerText = q.japanese ? `和訳: ${q.japanese}` : '';
       
-      const answerInput = document.getElementById('user-answer');
-      answerInput.value = '';
-      answerInput.disabled = false;
-      answerInput.focus();
+      if (currentMode === 'sort') {
+        document.getElementById('question-text').innerText = '正しい英文になるよう単語を並べ替えてください。';
+      } else {
+        document.getElementById('question-text').innerText = q.english;
+      }
+      
+      document.getElementById('ui-choice').classList.add('hidden');
+      document.getElementById('ui-sort').classList.add('hidden');
+      document.getElementById('ui-write').classList.add('hidden');
 
       const feedback = document.getElementById('feedback');
       feedback.className = 'feedback hidden';
-      feedback.innerText = '';
 
       document.getElementById('submit-btn').classList.remove('hidden');
       document.getElementById('next-btn').classList.add('hidden');
+
+      if (currentMode === 'choice') {
+        setupChoiceUI(q);
+      } else if (currentMode === 'sort') {
+        setupSortUI(q);
+      } else {
+        setupWriteUI(q);
+      }
+    }
+
+    // 1. 選択UI（正解肢 + G〜J列のダミー単語で4択作成）
+    function setupChoiceUI(q) {
+      const choiceContainer = document.getElementById('ui-choice');
+      choiceContainer.innerHTML = '';
+      choiceContainer.classList.remove('hidden');
+
+      let options = [q.targetWord];
+      let dummyPool = [...q.dummyWords];
+      shuffleArray(dummyPool);
+
+      for (let i = 0; i < Math.min(3, dummyPool.length); i++) {
+        options.push(dummyPool[i]);
+      }
+      shuffleArray(options);
+
+      options.forEach(opt => {
+        const btn = document.createElement('button');
+        btn.className = 'btn-option';
+        btn.innerText = opt;
+        btn.onclick = function() {
+          document.querySelectorAll('.btn-option').forEach(b => b.style.borderColor = '');
+          btn.style.borderColor = 'var(--primary-color)';
+          window.selectedOption = opt;
+        };
+        choiceContainer.appendChild(btn);
+      });
+      window.selectedOption = null;
+    }
+
+    // 2. 並べ替えUI（E列の英文を分解して並べ替え）
+    function setupSortUI(q) {
+      const sortContainer = document.getElementById('ui-sort');
+      sortContainer.classList.remove('hidden');
+
+      const selectedDiv = document.getElementById('selected-words');
+      const poolDiv = document.getElementById('pool-words');
+      selectedDiv.innerHTML = '';
+      poolDiv.innerHTML = '';
+
+      let words = q.english.trim().split(/\s+/);
+      shuffleArray(words);
+
+      words.forEach((w, idx) => {
+        const chip = document.createElement('div');
+        chip.className = 'word-chip';
+        chip.innerText = w;
+        chip.id = 'word-' + idx;
+        chip.onclick = function() {
+          if (chip.parentElement.id === 'pool-words') {
+            selectedDiv.appendChild(chip);
+          } else {
+            poolDiv.appendChild(chip);
+          }
+        };
+        poolDiv.appendChild(chip);
+      });
+    }
+
+    // 3. 書取りUI
+    function setupWriteUI(q) {
+      const writeContainer = document.getElementById('ui-write');
+      writeContainer.classList.remove('hidden');
+      const input = document.getElementById('user-answer');
+      input.value = '';
+      input.disabled = false;
+      input.focus();
     }
 
     function checkAnswer() {
-      const answerInput = document.getElementById('user-answer');
-      const userAns = answerInput.value.trim();
-      
+      const q = currentQuestions[currentIndex];
+      const feedback = document.getElementById('feedback');
+      const studentId = getStudentId();
+      let userAns = '';
+      let targetCorrectAns = '';
+
+      if (currentMode === 'choice') {
+        userAns = window.selectedOption || '';
+        targetCorrectAns = q.targetWord;
+      } else if (currentMode === 'sort') {
+        const chips = document.getElementById('selected-words').querySelectorAll('.word-chip');
+        const selectedList = [];
+        chips.forEach(c => selectedList.push(c.innerText));
+        userAns = selectedList.join(' ');
+        targetCorrectAns = q.english;
+      } else {
+        userAns = document.getElementById('user-answer').value.trim();
+        targetCorrectAns = q.targetWord;
+      }
+
       if (!userAns) {
-        alert('解答を入力してください。');
+        alert('解答を選択または入力してください。');
         return;
       }
 
-      const q = currentQuestions[currentIndex];
-      const feedback = document.getElementById('feedback');
-
-      answerInput.disabled = true;
       document.getElementById('submit-btn').classList.add('hidden');
 
-      if (userAns.toLowerCase() === String(q.answer).trim().toLowerCase()) {
+      if (userAns.toLowerCase() === String(targetCorrectAns).trim().toLowerCase()) {
         feedback.innerText = '⭕ 正解！';
         feedback.className = 'feedback correct';
-        
-        // Google Apps Script側のクリア処理（非同期で実行）
-        google.script.run.markAsCleared(q.id);
+        google.script.run.markAsCleared(studentId, q.id, currentMode);
       } else {
-        feedback.innerText = `❌ 不正解... (正解: ${q.answer})`;
+        feedback.innerText = `❌ 不正解... (正解: ${targetCorrectAns})`;
         feedback.className = 'feedback incorrect';
-        
-        // 間違えた問題を配列の末尾に追加して、正解するまで繰り返し出題
         currentQuestions.push(q);
       }
 
@@ -450,17 +456,18 @@
     function backToHome() {
       document.getElementById('quiz-screen').classList.add('hidden');
       document.getElementById('home-screen').classList.remove('hidden');
-      fetchHomeData(); // 最新の達成状況を再読み込み
+      fetchHomeData();
     }
 
     function handleReset() {
+      const studentId = getStudentId();
+      if (!studentId) return alert('学籍番号（または生徒ID）を入力してください。');
+
       const g = document.getElementById('grammar-select').value;
       const l = document.getElementById('level-select').value;
+      const m = document.getElementById('mode-select').value;
 
-      const gText = g === 'ALL' ? 'すべて' : g;
-      const lText = l === 'ALL' ? 'すべて' : 'Level ' + l;
-
-      if (confirm(`選択中の条件（文法: ${gText}, レベル: ${lText}）の進捗をリセットしますか？`)) {
+      if (confirm(`選択条件の進捗をリセットしますか？`)) {
         showLoading('リセット中...');
         google.script.run
           .withSuccessHandler(() => {
@@ -469,7 +476,7 @@
             fetchHomeData();
           })
           .withFailureHandler(handleError)
-          .resetProgress(g, l);
+          .resetProgress(studentId, g, l, m);
       }
     }
 
@@ -478,7 +485,13 @@
       alert('エラーが発生しました: ' + (err.message || err));
     }
 
-    // Enterキーでの回答/次へ操作
+    function shuffleArray(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+    }
+
     document.addEventListener('keypress', function(e) {
       if (e.key === 'Enter') {
         const quizScreen = document.getElementById('quiz-screen');
