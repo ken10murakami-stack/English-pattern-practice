@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>英文法学習アプリ</title>
+  <title>文法レベル別学習アプリ</title>
   <style>
     :root {
       --primary-color: #4f46e5;
@@ -72,7 +72,7 @@
     .btn-group { display: flex; flex-direction: column; gap: 10px; }
     button {
       width: 100%; padding: 12px; border: none; border-radius: 6px;
-      font-size: 1rem; font-weight: 600; cursor: pointer; transition: background-color 0.2s;
+      font-size: 1rem; font-weight: 600; cursor: pointer; transition: background-color 0.2s, color 0.2s;
     }
     .btn-primary { background-color: var(--primary-color); color: white; }
     .btn-primary:hover { background-color: var(--primary-hover); }
@@ -86,11 +86,19 @@
 
     .options-grid { display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 16px; }
     .btn-option {
-      background-color: #f3f4f6; border: 1px solid var(--border-color);
+      background-color: #f3f4f6; border: 2px solid var(--border-color);
       color: var(--text-main); text-align: left; padding: 12px 16px; border-radius: 6px;
-      font-size: 1rem; cursor: pointer;
+      font-size: 1rem; cursor: pointer; transition: all 0.2s ease;
     }
     .btn-option:hover { background-color: #e5e7eb; }
+    /* レベル1: 選択肢アクティブ（選択状態）の強調スタイル */
+    .btn-option.selected {
+      background-color: var(--primary-color) !important;
+      color: #ffffff !important;
+      border-color: var(--primary-hover) !important;
+      font-weight: 700;
+      box-shadow: 0 2px 4px rgba(79, 70, 229, 0.3);
+    }
 
     .word-container {
       display: flex; flex-wrap: wrap; gap: 8px; min-height: 50px;
@@ -112,7 +120,6 @@
     }
     .answer-box-title { font-size: 0.85rem; font-weight: 700; color: #166534; margin-bottom: 6px; }
     .answer-box-content { font-size: 1.15rem; font-weight: 700; color: #15803d; line-height: 1.4; }
-    .answer-box-sub { font-size: 0.9rem; color: #166534; margin-top: 6px; }
 
     .self-eval-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
 
@@ -135,7 +142,7 @@
 
     <!-- ホーム画面 -->
     <div id="home-screen" class="card">
-      <h1>英文法学習アプリ</h1>
+      <h1>文法レベル別学習アプリ</h1>
       
       <div class="form-group">
         <label for="student-id">学籍番号 / 生徒ID</label>
@@ -198,7 +205,7 @@
         <div id="pool-words" class="word-container"></div>
       </div>
 
-      <!-- 3. レベル3: ノート自己採点UI（タイピング機能なし） -->
+      <!-- 3. レベル3: ノート自己採点UI -->
       <div id="ui-write" class="hidden">
         <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:12px;">
           ※ ノートに英文を書いてから「答えを表示する」を押してください。
@@ -209,7 +216,6 @@
           <div class="answer-box">
             <div class="answer-box-title">正解（模範英文）</div>
             <div class="answer-box-content" id="correct-english-text"></div>
-            <div class="answer-box-sub" id="correct-target-text"></div>
           </div>
           <p style="font-size:0.9rem; font-weight:600; text-align:center; margin-bottom:10px;">
             自分のノートと見比べて採点してください
@@ -464,7 +470,7 @@
       document.getElementById('next-btn').classList.add('hidden');
     }
 
-    // 1. レベル1: 選択肢UI
+    // 1. レベル1: 選択肢UI（アクティブ時スタイル切り替え対応）
     function setupChoiceUI(q) {
       const choiceContainer = document.getElementById('ui-choice');
       choiceContainer.innerHTML = '';
@@ -484,8 +490,10 @@
         btn.className = 'btn-option';
         btn.innerText = opt;
         btn.onclick = function() {
-          document.querySelectorAll('.btn-option').forEach(b => b.style.borderColor = '');
-          btn.style.borderColor = 'var(--primary-color)';
+          // すべてのボタンから selected クラスを解除
+          document.querySelectorAll('.btn-option').forEach(b => b.classList.remove('selected'));
+          // タップされたボタンに selected クラスを付与
+          btn.classList.add('selected');
           window.selectedOption = opt;
         };
         choiceContainer.appendChild(btn);
@@ -522,7 +530,7 @@
       });
     }
 
-    // 3. レベル3: ノート学習・自己採点UI
+    // 3. レベル3: ノート学習・自己採点UI（ターゲット単語の表示は削除）
     function setupWriteUI(q) {
       const writeContainer = document.getElementById('ui-write');
       writeContainer.classList.remove('hidden');
@@ -530,8 +538,8 @@
       document.getElementById('show-answer-btn').classList.remove('hidden');
       document.getElementById('answer-reveal-area').classList.add('hidden');
       
+      // 正解英文のみをセット
       document.getElementById('correct-english-text').innerText = q.english;
-      document.getElementById('correct-target-text').innerText = q.targetWord ? `(ターゲット単語: ${q.targetWord})` : '';
     }
 
     function revealSelfAnswer() {
