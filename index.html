@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>文法多機能学習アプリ</title>
+  <title>文法レベル別学習アプリ</title>
   <style>
     :root {
       --primary-color: #4f46e5;
@@ -96,7 +96,7 @@
 
     <!-- ホーム画面 -->
     <div id="home-screen" class="card">
-      <h1>文法多機能学習アプリ</h1>
+      <h1>文法レベル別学習アプリ</h1>
       
       <div class="form-group">
         <label for="student-id">学籍番号 / 生徒ID</label>
@@ -111,24 +111,17 @@
       </div>
 
       <div class="form-group">
-        <label for="level-select">レベル</label>
+        <label for="level-select">レベル（学習形式）</label>
         <select id="level-select" onchange="updateStatusDisplay()">
-          <option value="ALL">すべて</option>
-        </select>
-      </div>
-
-      <div class="form-group">
-        <label for="mode-select">学習形式</label>
-        <select id="mode-select">
-          <option value="choice">選択問題（4択）</option>
-          <option value="sort">並べ替え問題</option>
-          <option value="write">書取り問題（タイピング）</option>
+          <option value="1">レベル 1 （選択問題）</option>
+          <option value="2">レベル 2 （並べ替え）</option>
+          <option value="3">レベル 3 （書取り）</option>
         </select>
       </div>
 
       <div class="status-container">
         <div class="status-header">
-          <span>全形式の総合達成率</span>
+          <span>選択条件の達成状況</span>
           <span id="status-text">0 / 0 (0%)</span>
         </div>
         <div class="progress-bar">
@@ -179,8 +172,8 @@
   </div>
 
   <script>
-    // デプロイしたGASの「ウェブアプリURL」を入力してください
-    const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbww1_XXiTf6RkWWlwu9nQhNhe1XpmwYODv3QkTRl1vRtS6Et4Bv2UxBA6aiJ57OknP_/exec';
+    // デプロイしたGASの「ウェブアプリURL」を設定してください
+    const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbx6WBiV9ceD-xMNjOQ403jaP_dJF1wxhEuAhCO5EbuocRP-3rEWc5UmgKV2KGM6pqUV/exec';
 
     let homeData = null;
     let currentQuestions = [];
@@ -213,7 +206,6 @@
       return document.getElementById('student-id').value.trim();
     }
 
-    // API呼び出し関数 (GET)
     async function apiGet(params) {
       const url = new URL(GAS_API_URL);
       Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
@@ -221,7 +213,6 @@
       return await response.json();
     }
 
-    // API呼び出し関数 (POST)
     async function apiPost(data) {
       const response = await fetch(GAS_API_URL, {
         method: 'POST',
@@ -246,19 +237,11 @@
     function initHome(data) {
       homeData = data;
       const gSelect = document.getElementById('grammar-select');
-      const lSelect = document.getElementById('level-select');
-
       const currentG = gSelect.value;
-      const currentL = lSelect.value;
 
       gSelect.innerHTML = '<option value="ALL">すべて</option>';
-      lSelect.innerHTML = '<option value="ALL">すべて</option>';
-
       if (data.grammars) data.grammars.forEach(g => gSelect.add(new Option(g, g)));
-      if (data.levels) data.levels.forEach(l => lSelect.add(new Option('Level ' + l, l)));
-
       gSelect.value = currentG;
-      lSelect.value = currentL;
 
       updateStatusDisplay();
       hideLoading();
@@ -278,14 +261,17 @@
         const g = parts[0];
         const l = parts[1];
 
-        if ((selectedG === 'ALL' || g === selectedG) && (selectedL === 'ALL' || String(l) === String(selectedL))) {
+        const matchG = (selectedG === 'ALL' || g === selectedG);
+        const matchL = (selectedL === 'ALL' || String(l) === String(selectedL));
+
+        if (matchG && matchL) {
           total += homeData.stats[key].total || 0;
           cleared += homeData.stats[key].cleared || 0;
         }
       });
 
       const percent = total > 0 ? Math.round((cleared / total) * 100) : 0;
-      document.getElementById('status-text').innerText = `${cleared} / ${total} (総合 ${percent}%)`;
+      document.getElementById('status-text').innerText = `${cleared} / ${total} 問 (${percent}%)`;
       document.getElementById('progress-fill').style.width = percent + '%';
     }
 
@@ -298,7 +284,6 @@
 
       const g = document.getElementById('grammar-select').value;
       const l = document.getElementById('level-select').value;
-      currentMode = document.getElementById('mode-select').value;
 
       showLoading('問題を準備中...');
       try {
@@ -306,20 +291,20 @@
           action: 'getQuestions',
           studentId: studentId,
           grammar: g,
-          level: l,
-          mode: currentMode
+          level: l
         });
         if (res.status === 'error') throw new Error(res.message);
-        setupQuiz(res.questions);
+        currentMode = res.mode;
+        setupQuiz(res.questions, l);
       } catch (err) {
         handleError(err);
       }
     }
 
-    function setupQuiz(questions) {
+    function setupQuiz(questions, selectedLevel) {
       hideLoading();
       if (!questions || questions.length === 0) {
-        alert('この学習条件で未正解の問題がありません！');
+        alert('選択したレベル・文法で未正解の問題はありません！');
         return;
       }
 
@@ -329,10 +314,10 @@
       document.getElementById('home-screen').classList.add('hidden');
       document.getElementById('quiz-screen').classList.remove('hidden');
       
-      showQuestion();
+      showQuestion(selectedLevel);
     }
 
-    function showQuestion() {
+    function showQuestion(selectedLevel) {
       if (currentIndex >= currentQuestions.length) {
         alert('このセットの問題がすべて完了しました！');
         backToHome();
@@ -340,8 +325,9 @@
       }
 
       const q = currentQuestions[currentIndex];
+      const levelText = selectedLevel ? `Level ${selectedLevel}` : '';
       
-      document.getElementById('quiz-category').innerText = `${q.grammar} - Level ${q.level}`;
+      document.getElementById('quiz-category').innerText = `${q.grammar} - ${levelText}`;
       document.getElementById('quiz-progress').innerText = `${currentIndex + 1} / ${currentQuestions.length} 問`;
       document.getElementById('japanese-box').innerText = q.japanese ? `和訳: ${q.japanese}` : '';
       
@@ -467,7 +453,6 @@
         feedback.innerText = '⭕ 正解！';
         feedback.className = 'feedback correct';
         
-        // バックグラウンドでGAS APIへ正解を送信
         apiPost({
           action: 'markAsCleared',
           studentId: studentId,
@@ -501,17 +486,15 @@
 
       const g = document.getElementById('grammar-select').value;
       const l = document.getElementById('level-select').value;
-      const m = document.getElementById('mode-select').value;
 
-      if (confirm(`選択条件の進捗をリセットしますか？`)) {
+      if (confirm(`選択中の条件（レベル ${l}）の進捗をリセットしますか？`)) {
         showLoading('リセット中...');
         try {
           await apiPost({
             action: 'resetProgress',
             studentId: studentId,
             grammar: g,
-            level: l,
-            mode: m
+            level: l
           });
           hideLoading();
           alert('進捗をリセットしました。');
