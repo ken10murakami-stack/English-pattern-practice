@@ -91,7 +91,6 @@
       font-size: 1rem; cursor: pointer; transition: all 0.2s ease;
     }
     .btn-option:hover { background-color: #e5e7eb; }
-    /* レベル1: 選択肢アクティブ（選択状態）の強調スタイル */
     .btn-option.selected {
       background-color: var(--primary-color) !important;
       color: #ffffff !important;
@@ -416,11 +415,13 @@
       showQuestion(selectedLevel);
     }
 
+    // 括弧内のスペースを広げた置換処理
     function makeBlankQuestion(english, targetWord) {
       if (!english || !targetWord) return english;
       const escapedTarget = targetWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const regex = new RegExp(escapedTarget, 'gi');
-      return english.replace(regex, '( )');
+      // 全角スペース3つ分のゆったりした空欄を作成
+      return english.replace(regex, '(   )');
     }
 
     function showQuestion(selectedLevel) {
@@ -439,7 +440,7 @@
       document.getElementById('japanese-box').innerText = q.japanese || '';
       
       if (currentMode === 'choice') {
-        // レベル1: 英文のターゲット語を( )にして問題表示
+        // レベル1: 英文のターゲット語をスペースの広い (   ) にして問題表示
         document.getElementById('question-text').innerText = makeBlankQuestion(q.english, q.targetWord);
       } else {
         // レベル2(並べ替え) & レベル3(書取り・ノート): 問題本文は空（和訳と各UIを表示）
@@ -470,7 +471,7 @@
       document.getElementById('next-btn').classList.add('hidden');
     }
 
-    // 1. レベル1: 選択肢UI（アクティブ時スタイル切り替え対応）
+    // 1. レベル1: 選択肢UI
     function setupChoiceUI(q) {
       const choiceContainer = document.getElementById('ui-choice');
       choiceContainer.innerHTML = '';
@@ -490,9 +491,7 @@
         btn.className = 'btn-option';
         btn.innerText = opt;
         btn.onclick = function() {
-          // すべてのボタンから selected クラスを解除
           document.querySelectorAll('.btn-option').forEach(b => b.classList.remove('selected'));
-          // タップされたボタンに selected クラスを付与
           btn.classList.add('selected');
           window.selectedOption = opt;
         };
@@ -530,7 +529,7 @@
       });
     }
 
-    // 3. レベル3: ノート学習・自己採点UI（ターゲット単語の表示は削除）
+    // 3. レベル3: ノート学習・自己採点UI
     function setupWriteUI(q) {
       const writeContainer = document.getElementById('ui-write');
       writeContainer.classList.remove('hidden');
@@ -538,7 +537,6 @@
       document.getElementById('show-answer-btn').classList.remove('hidden');
       document.getElementById('answer-reveal-area').classList.add('hidden');
       
-      // 正解英文のみをセット
       document.getElementById('correct-english-text').innerText = q.english;
     }
 
