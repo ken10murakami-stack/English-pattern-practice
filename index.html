@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>英文法学習アプリ</title>
+  <title>文法レベル別学習アプリ</title>
   <style>
     :root {
       --primary-color: #4f46e5;
@@ -112,10 +112,10 @@
     .question-box { font-size: 1.15rem; font-weight: 600; line-height: 1.5; margin-bottom: 8px; }
     .japanese-text { font-size: 1rem; color: var(--text-main); font-weight: 600; margin-bottom: 16px; background: #eef2ff; padding: 12px; border-radius: 6px; }
 
-    /* （ ）内の空白幅を強制的に広げるCSS指定 */
+    /* （ ）内の幅固定 */
     .blank-space {
       display: inline-block;
-      width: 3.5em; /* 4文字分相当の幅を保持 */
+      width: 3.5em;
     }
 
     /* レベル3 答え合わせ用カード */
@@ -147,7 +147,7 @@
 
     <!-- ホーム画面 -->
     <div id="home-screen" class="card">
-      <h1>英文法学習アプリ</h1>
+      <h1>文法レベル別学習アプリ</h1>
       
       <div class="form-group">
         <label for="student-id">学籍番号 / 生徒ID</label>
@@ -250,7 +250,14 @@
     let currentQuestions = [];
     let currentIndex = 0;
     let currentMode = 'choice';
+    let currentLevel = '1';
     let isAllSelected = true;
+
+    const LEVEL_MODE_DICT = {
+      '1': 'choice',
+      '2': 'sort',
+      '3': 'write'
+    };
 
     window.onload = function() {
       const savedId = localStorage.getItem('student_id') || '';
@@ -279,9 +286,17 @@
     }
 
     async function apiGet(params) {
-      const url = new URL(GAS_API_URL);
-      Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
-      const response = await fetch(url.toString());
+      const searchParams = new URLSearchParams(params);
+      const targetUrl = `${GAS_API_URL}?${searchParams.toString()}`;
+      
+      const response = await fetch(targetUrl, {
+        method: 'GET',
+        redirect: 'follow'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`サーバーレスポンスエラー (${response.status})`);
+      }
       return await response.json();
     }
 
@@ -289,8 +304,13 @@
       const response = await fetch(GAS_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(data)
+        body: JSON.stringify(data),
+        redirect: 'follow'
       });
+      
+      if (!response.ok) {
+        throw new Error(`サーバーレスポンスエラー (${response.status})`);
+      }
       return await response.json();
     }
 
@@ -309,6 +329,19 @@
     function initHome(data) {
       homeData = data;
       const container = document.getElementById('grammar-checkbox-list');
+
+      // 既存のチェック状態または保存されたチェック状態を取得
+      let savedChecked = [];
+      const currentCheckboxes = document.querySelectorAll('#grammar-checkbox-list input[type="checkbox"]:checked');
+      if (currentCheckboxes.length > 0) {
+        savedChecked = Array.from(currentCheckboxes).map(c => c.value);
+      } else {
+        const stored = localStorage.getItem('selected_grammars');
+        if (stored) {
+          try { savedChecked = JSON.parse(stored); } catch(e) {}
+        }
+      }
+
       container.innerHTML = '';
 
       if (data.grammars && data.grammars.length > 0) {
@@ -319,8 +352,15 @@
           const chk = document.createElement('input');
           chk.type = 'checkbox';
           chk.value = g;
-          chk.checked = true;
-          chk.onchange = updateStatusDisplay;
+          
+          // 前回のチェック状態があればそれを復元、なければ全選択
+          if (savedChecked.length > 0) {
+            chk.checked = savedChecked.includes(g);
+          } else {
+            chk.checked = true;
+          }
+          
+          chk.onchange = onCheckboxChange;
 
           label.appendChild(chk);
           label.appendChild(document.createTextNode(g));
@@ -334,11 +374,22 @@
       hideLoading();
     }
 
+    function onCheckboxChange() {
+      saveSelectedGrammars();
+      updateStatusDisplay();
+    }
+
     function toggleSelectAllGrammars() {
       const checkboxes = document.querySelectorAll('#grammar-checkbox-list input[type="checkbox"]');
       isAllSelected = !isAllSelected;
       checkboxes.forEach(chk => chk.checked = isAllSelected);
+      saveSelectedGrammars();
       updateStatusDisplay();
+    }
+
+    function saveSelectedGrammars() {
+      const selected = getSelectedGrammars();
+      localStorage.setItem('selected_grammars', JSON.stringify(selected));
     }
 
     function getSelectedGrammars() {
@@ -387,7 +438,10 @@
         return;
       }
 
-      const l = document.getElementById('level-select').value;
+      saveSelectedGrammars();
+
+      currentLevel = document.getElementById('level-select').value;
+      currentMode = LEVEL_MODE_DICT[currentLevel] || 'choice';
 
       showLoading('問題を準備中...');
       try {
@@ -395,17 +449,16 @@
           action: 'getQuestions',
           studentId: studentId,
           grammars: selectedGrammars.join(','),
-          level: l
+          level: currentLevel
         });
         if (res.status === 'error') throw new Error(res.message);
-        currentMode = res.mode;
-        setupQuiz(res.questions, l);
+        setupQuiz(res.questions);
       } catch (err) {
         handleError(err);
       }
     }
 
-    function setupQuiz(questions, selectedLevel) {
+    function setupQuiz(questions) {
       hideLoading();
       if (!questions || questions.length === 0) {
         alert('選択した条件（文法・レベル）で未正解の問題はありません！');
@@ -418,10 +471,9 @@
       document.getElementById('home-screen').classList.add('hidden');
       document.getElementById('quiz-screen').classList.remove('hidden');
       
-      showQuestion(selectedLevel);
+      showQuestion();
     }
 
-    // （ ）内にCSS定義した幅固定のspanタグを挿入する処理
     function makeBlankQuestion(english, targetWord) {
       if (!english || !targetWord) return english;
       const escapedTarget = targetWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -429,7 +481,7 @@
       return english.replace(regex, '(<span class="blank-space"></span>)');
     }
 
-    function showQuestion(selectedLevel) {
+    function showQuestion() {
       if (currentIndex >= currentQuestions.length) {
         alert('このセットの問題がすべて完了しました！');
         backToHome();
@@ -437,15 +489,13 @@
       }
 
       const q = currentQuestions[currentIndex];
-      const levelText = selectedLevel ? `Level ${selectedLevel}` : '';
       
-      document.getElementById('quiz-category').innerText = `${q.grammar} - ${levelText}`;
+      document.getElementById('quiz-category').innerText = `${q.grammar} - Level ${currentLevel}`;
       document.getElementById('quiz-progress').innerText = `${currentIndex + 1} / ${currentQuestions.length} 問`;
       
       document.getElementById('japanese-box').innerText = q.japanese || '';
       
       if (currentMode === 'choice') {
-        // innerHTML を使用してspanタグの広めの空欄を描画
         document.getElementById('question-text').innerHTML = makeBlankQuestion(q.english, q.targetWord);
       } else {
         document.getElementById('question-text').innerHTML = '';
@@ -466,7 +516,7 @@
       } else if (currentMode === 'sort') {
         submitBtn.classList.remove('hidden');
         setupSortUI(q);
-      } else {
+      } else if (currentMode === 'write') {
         submitBtn.classList.add('hidden');
         setupWriteUI(q);
       }
@@ -560,7 +610,7 @@
           action: 'markAsCleared',
           studentId: studentId,
           questionId: q.id,
-          mode: currentMode
+          level: currentLevel
         });
       } else {
         feedback.innerText = '❌ 次回頑張りましょう！';
@@ -605,7 +655,7 @@
           action: 'markAsCleared',
           studentId: studentId,
           questionId: q.id,
-          mode: currentMode
+          level: currentLevel
         });
       } else {
         feedback.innerText = `❌ 不正解... (正解: ${targetCorrectAns})`;
