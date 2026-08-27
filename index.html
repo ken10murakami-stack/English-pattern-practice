@@ -244,7 +244,7 @@
 
   <script>
     // デプロイしたGASの「ウェブアプリURL」を設定してください
-    const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbwBXFVTEUeixZaqlNpYuaGKuMH94rbLucKWtavI5tKQEuK0oKuOFzdmochtBYSG-otW/exec';
+    const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbzaZS1fuTUR3a5VrHkCKSvrYNvb4FGN-FQM3CPBqqQJG66kwGC02MjS5M8I9HSebljz/exec';
 
     let homeData = null;
     let currentQuestions = [];
@@ -330,7 +330,6 @@
       homeData = data;
       const container = document.getElementById('grammar-checkbox-list');
 
-      // 既存のチェック状態または保存されたチェック状態を取得
       let savedChecked = [];
       const currentCheckboxes = document.querySelectorAll('#grammar-checkbox-list input[type="checkbox"]:checked');
       if (currentCheckboxes.length > 0) {
@@ -353,7 +352,6 @@
           chk.type = 'checkbox';
           chk.value = g;
           
-          // 前回のチェック状態があればそれを復元、なければ全選択
           if (savedChecked.length > 0) {
             chk.checked = savedChecked.includes(g);
           } else {
@@ -465,7 +463,10 @@
         return;
       }
 
-      currentQuestions = questions;
+      // 未正解の問題リストをランダムにシャッフルして出題順をバラバラにする
+      currentQuestions = [...questions];
+      shuffleArray(currentQuestions);
+      
       currentIndex = 0;
 
       document.getElementById('home-screen').classList.add('hidden');
