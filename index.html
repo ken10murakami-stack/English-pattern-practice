@@ -244,7 +244,7 @@
 
   <script>
     // デプロイしたGASの「ウェブアプリURL」を設定してください
-    const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbzaZS1fuTUR3a5VrHkCKSvrYNvb4FGN-FQM3CPBqqQJG66kwGC02MjS5M8I9HSebljz/exec';
+    const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbzt9wxru4KdweMav-pcOVon85iMsrEmqR-8Bx0RH0iEExv8HQhEgE17ZQKpjHgmyeEt/exec';
 
     let homeData = null;
     let currentQuestions = [];
@@ -463,7 +463,6 @@
         return;
       }
 
-      // 未正解の問題リストをランダムにシャッフルして出題順をバラバラにする
       currentQuestions = [...questions];
       shuffleArray(currentQuestions);
       
@@ -596,7 +595,7 @@
       document.getElementById('answer-reveal-area').classList.remove('hidden');
     }
 
-    function handleSelfEval(isCorrect) {
+    async function handleSelfEval(isCorrect) {
       const q = currentQuestions[currentIndex];
       const feedback = document.getElementById('feedback');
       const studentId = getStudentId();
@@ -607,7 +606,7 @@
         feedback.innerText = '⭕ 正解！素晴らしい！';
         feedback.className = 'feedback correct';
         
-        apiPost({
+        await apiPost({
           action: 'markAsCleared',
           studentId: studentId,
           questionId: q.id,
@@ -652,7 +651,7 @@
         feedback.innerText = '⭕ 正解！';
         feedback.className = 'feedback correct';
         
-        apiPost({
+        await apiPost({
           action: 'markAsCleared',
           studentId: studentId,
           questionId: q.id,
