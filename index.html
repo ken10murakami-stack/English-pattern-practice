@@ -1,276 +1,740 @@
-const SPREADSHEET_ID = '1_kEnJIJuZ5s_iipBwNRIZQvU2fTnsuEKaO3V8_XYR_A'; // ご自身のスプレッドシートIDを設定してください
-const SHEET_QUESTIONS = '問題データ';
-const SHEET_LOGS = '解答履歴';
-
-// レベルと列インデックス (Level 1: B列(index 1), Level 2: C列(index 2), Level 3: D列(index 3))
-const LEVEL_COL_MAP = {
-  '1': 1,
-  '2': 2,
-  '3': 3
-};
-
-function doGet(e) {
-  const action = e.parameter.action;
-  const studentId = String(e.parameter.studentId || '').trim();
-  const grammarsParam = e.parameter.grammars || '';
-  const selectedGrammars = grammarsParam ? grammarsParam.split(',') : [];
-  const level = String(e.parameter.level || '1').trim();
-
-  let result = {};
-
-  try {
-    if (action === 'getHomeData') {
-      result = getHomeData(studentId);
-    } else if (action === 'getQuestions') {
-      result = getQuestions(studentId, selectedGrammars, level);
-    } else {
-      result = { status: 'error', message: 'Invalid action' };
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>文法レベル別学習アプリ</title>
+  <style>
+    :root {
+      --primary-color: #4f46e5;
+      --primary-hover: #4338ca;
+      --bg-color: #f3f4f6;
+      --card-bg: #ffffff;
+      --text-main: #1f2937;
+      --text-muted: #6b7280;
+      --success-color: #10b981;
+      --success-hover: #059669;
+      --error-color: #ef4444;
+      --error-hover: #dc2626;
+      --warning-color: #f59e0b;
+      --border-color: #e5e7eb;
     }
-  } catch (err) {
-    result = { status: 'error', message: err.message || String(err) };
-  }
 
-  return ContentService.createTextOutput(JSON.stringify(result))
-    .setMimeType(ContentService.MimeType.JSON);
-}
-
-function doPost(e) {
-  let result = {};
-  try {
-    const data = JSON.parse(e.postData.contents);
-    const action = data.action;
-
-    if (action === 'markAsCleared') {
-      markAsCleared(String(data.studentId).trim(), String(data.questionId).trim(), String(data.level).trim());
-      result = { status: 'success' };
-    } else if (action === 'resetProgress') {
-      resetProgress(String(data.studentId).trim(), data.grammars, String(data.level).trim());
-      result = { status: 'success' };
-    } else {
-      result = { status: 'error', message: 'Invalid action' };
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      padding: 20px 16px;
+      display: flex; justify-content: center; min-height: 100vh;
     }
-  } catch (err) {
-    result = { status: 'error', message: err.message || String(err) };
-  }
-
-  return ContentService.createTextOutput(JSON.stringify(result))
-    .setMimeType(ContentService.MimeType.JSON);
-}
-
-// 1. ホーム画面用データ取得
-function getHomeData(studentId) {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const qSheet = ss.getSheetByName(SHEET_QUESTIONS);
-  const lSheet = ss.getSheetByName(SHEET_LOGS);
-
-  if (!qSheet || !lSheet) throw new Error("シートが見つかりません。");
-
-  const qData = qSheet.getDataRange().getValues();
-  qData.shift(); // ヘッダー除去
-
-  const grammarSet = new Set();
-  qData.forEach(row => {
-    const grammar = String(row[1]).trim();
-    if (grammar) grammarSet.add(grammar);
-  });
-
-  const clearedSets = { '1': new Set(), '2': new Set(), '3': new Set() };
-
-  if (studentId) {
-    const lData = lSheet.getDataRange().getValues();
-    for (let i = 1; i < lData.length; i++) {
-      if (String(lData[i][0]).trim() === String(studentId).trim()) {
-        ['1', '2', '3'].forEach(lvl => {
-          const colIdx = LEVEL_COL_MAP[lvl];
-          const idsStr = String(lData[i][colIdx] || '');
-          if (idsStr) {
-            idsStr.split(',').forEach(id => {
-              const cleanId = String(id).trim();
-              if (cleanId) clearedSets[lvl].add(cleanId);
-            });
-          }
-        });
-        break;
-      }
+    .container { width: 100%; max-width: 500px; }
+    .card {
+      background: var(--card-bg); border-radius: 12px; padding: 24px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); margin-bottom: 16px;
     }
-  }
-
-  const stats = {};
-  qData.forEach(row => {
-    const id = String(row[0]).trim();
-    const grammar = String(row[1]).trim();
-
-    if (!id || !grammar) return;
-
-    ['1', '2', '3'].forEach(lvl => {
-      const key = `${grammar}_${lvl}`;
-      if (!stats[key]) {
-        stats[key] = { total: 0, cleared: 0 };
-      }
-      stats[key].total++;
-      if (clearedSets[lvl].has(id)) {
-        stats[key].cleared++;
-      }
-    });
-  });
-
-  return {
-    status: 'success',
-    grammars: Array.from(grammarSet),
-    levels: ['1', '2', '3'],
-    stats: stats
-  };
-}
-
-// 2. 未正解問題の取得
-function getQuestions(studentId, selectedGrammars, selectedLevel) {
-  if (!studentId) throw new Error("学籍番号を入力してください。");
-
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const qSheet = ss.getSheetByName(SHEET_QUESTIONS);
-  const lSheet = ss.getSheetByName(SHEET_LOGS);
-
-  const clearedSet = new Set();
-  const lData = lSheet.getDataRange().getValues();
-  const colIdx = LEVEL_COL_MAP[selectedLevel] || 1;
-
-  for (let i = 1; i < lData.length; i++) {
-    if (String(lData[i][0]).trim() === String(studentId).trim()) {
-      const idsStr = String(lData[i][colIdx] || '');
-      if (idsStr) {
-        idsStr.split(',').forEach(id => {
-          const cleanId = String(id).trim();
-          if (cleanId) clearedSet.add(cleanId);
-        });
-      }
-      break;
+    .hidden { display: none !important; }
+    h1 { font-size: 1.5rem; text-align: center; margin-bottom: 20px; }
+    .form-group { margin-bottom: 16px; }
+    label { display: block; font-size: 0.875rem; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }
+    select, input[type="text"] {
+      width: 100%; padding: 10px 12px; border: 1px solid var(--border-color);
+      border-radius: 6px; font-size: 1rem; outline: none;
     }
-  }
 
-  const qData = qSheet.getDataRange().getValues();
-  qData.shift();
+    /* チェックボックスリストUI */
+    .checkbox-header {
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;
+    }
+    .btn-toggle-all {
+      font-size: 0.75rem; color: var(--primary-color); background: none; border: none;
+      cursor: pointer; padding: 0; text-decoration: underline; width: auto;
+    }
+    .checkbox-list {
+      max-height: 160px; overflow-y: auto; border: 1px solid var(--border-color);
+      border-radius: 6px; padding: 8px 12px; background: #fff;
+    }
+    .checkbox-item {
+      display: flex; align-items: center; gap: 8px; padding: 6px 0;
+      border-bottom: 1px solid #f3f4f6; cursor: pointer; font-size: 0.95rem;
+    }
+    .checkbox-item:last-child { border-bottom: none; }
+    .checkbox-item input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; }
 
-  const unclearedQuestions = qData.filter(row => {
-    const id = String(row[0]).trim();
-    const grammar = String(row[1]).trim();
+    .status-container {
+      background-color: #f9fafb; border: 1px solid var(--border-color);
+      border-radius: 8px; padding: 16px; margin-bottom: 20px;
+    }
+    .status-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 0.9rem; font-weight: 600; }
+    .progress-bar { background: #e5e7eb; border-radius: 9999px; height: 12px; width: 100%; overflow: hidden; }
+    .progress-fill { background: var(--success-color); height: 100%; width: 0%; transition: width 0.4s ease; }
+    
+    .btn-group { display: flex; flex-direction: column; gap: 10px; }
+    button {
+      width: 100%; padding: 12px; border: none; border-radius: 6px;
+      font-size: 1rem; font-weight: 600; cursor: pointer; transition: background-color 0.2s, color 0.2s;
+    }
+    .btn-primary { background-color: var(--primary-color); color: white; }
+    .btn-primary:hover { background-color: var(--primary-hover); }
+    .btn-warning { background-color: var(--warning-color); color: white; }
+    .btn-secondary { background-color: #e5e7eb; color: var(--text-main); }
+    
+    .btn-success { background-color: var(--success-color); color: white; }
+    .btn-success:hover { background-color: var(--success-hover); }
+    .btn-danger { background-color: var(--error-color); color: white; }
+    .btn-danger:hover { background-color: var(--error-hover); }
 
-    if (!id) return false;
+    .options-grid { display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 16px; }
+    .btn-option {
+      background-color: #f3f4f6; border: 2px solid var(--border-color);
+      color: var(--text-main); text-align: left; padding: 12px 16px; border-radius: 6px;
+      font-size: 1rem; cursor: pointer; transition: all 0.2s ease;
+    }
+    .btn-option:hover { background-color: #e5e7eb; }
+    .btn-option.selected {
+      background-color: var(--primary-color) !important;
+      color: #ffffff !important;
+      border-color: var(--primary-hover) !important;
+      font-weight: 700;
+      box-shadow: 0 2px 4px rgba(79, 70, 229, 0.3);
+    }
 
-    const matchGrammar = (selectedGrammars.length === 0 || selectedGrammars.includes(grammar));
-    const isCleared = clearedSet.has(id);
+    .word-container {
+      display: flex; flex-wrap: wrap; gap: 8px; min-height: 50px;
+      padding: 10px; border: 2px dashed var(--border-color); border-radius: 8px; margin-bottom: 16px;
+    }
+    .word-chip {
+      background-color: #e0e7ff; color: #3730a3; padding: 8px 12px;
+      border-radius: 6px; font-weight: 600; cursor: pointer; user-select: none;
+    }
 
-    return matchGrammar && !isCleared;
-  }).map(row => {
-    const dummyWords = [row[5], row[6], row[7], row[8]]
-      .map(d => String(d).trim())
-      .filter(d => d.length > 0);
+    .quiz-info { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px; display: flex; justify-content: space-between; }
+    .question-box { font-size: 1.15rem; font-weight: 600; line-height: 1.5; margin-bottom: 8px; }
+    .japanese-text { font-size: 1rem; color: var(--text-main); font-weight: 600; margin-bottom: 16px; background: #eef2ff; padding: 12px; border-radius: 6px; }
 
-    return {
-      id: String(row[0]).trim(),
-      grammar: String(row[1]).trim(),
-      japanese: String(row[2]).trim(),
-      english: String(row[3]).trim(),
-      targetWord: String(row[4]).trim(),
-      dummyWords: dummyWords
+    /* （ ）内の幅固定 */
+    .blank-space {
+      display: inline-block;
+      width: 3.5em;
+    }
+
+    /* レベル3 答え合わせ用カード */
+    .answer-box {
+      background-color: #f0fdf4; border: 1px solid #bbf7d0;
+      border-radius: 8px; padding: 16px; margin-bottom: 16px;
+    }
+    .answer-box-title { font-size: 0.85rem; font-weight: 700; color: #166534; margin-bottom: 6px; }
+    .answer-box-content { font-size: 1.15rem; font-weight: 700; color: #15803d; line-height: 1.4; }
+
+    .self-eval-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+
+    .feedback { margin: 16px 0; padding: 12px; border-radius: 6px; font-weight: 600; text-align: center; }
+    .feedback.correct { background-color: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+    .feedback.incorrect { background-color: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+    
+    .loading-overlay {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(255, 255, 255, 0.8); display: flex;
+      justify-content: center; align-items: center; font-weight: 600;
+      color: var(--primary-color); z-index: 100;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div id="loading" class="loading-overlay">データを読み込み中...</div>
+
+    <!-- ホーム画面 -->
+    <div id="home-screen" class="card">
+      <h1>文法レベル別学習アプリ</h1>
+      
+      <div class="form-group">
+        <label for="student-id">学籍番号 / 生徒ID</label>
+        <input type="text" id="student-id" placeholder="例: A12345" onchange="onStudentIdChange()">
+      </div>
+
+      <!-- チェックボックス形式の文法選択 -->
+      <div class="form-group">
+        <div class="checkbox-header">
+          <label>出題される文法（複数選択可）</label>
+          <button class="btn-toggle-all" onclick="toggleSelectAllGrammars()">すべて選択 / 解除</button>
+        </div>
+        <div id="grammar-checkbox-list" class="checkbox-list">
+          <div style="font-size:0.85rem; color:var(--text-muted);">読み込み中...</div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="level-select">レベル（学習形式）</label>
+        <select id="level-select" onchange="updateStatusDisplay()">
+          <option value="1">レベル 1 （選択問題）</option>
+          <option value="2">レベル 2 （並べ替え）</option>
+          <option value="3">レベル 3 （書取り・ノート学習）</option>
+        </select>
+      </div>
+
+      <div class="status-container">
+        <div class="status-header">
+          <span>選択文法の達成状況</span>
+          <span id="status-text">0 / 0 (0%)</span>
+        </div>
+        <div class="progress-bar">
+          <div id="progress-fill" class="progress-fill"></div>
+        </div>
+      </div>
+
+      <div class="btn-group">
+        <button class="btn-primary" onclick="startLearning()">学習を開始する</button>
+        <button class="btn-warning" onclick="handleReset()">選択文法の進捗をリセット</button>
+      </div>
+    </div>
+
+    <!-- 学習画面 -->
+    <div id="quiz-screen" class="card hidden">
+      <div class="quiz-info">
+        <span id="quiz-category">文法 - Level 1</span>
+        <span id="quiz-progress">1 / 10 問</span>
+      </div>
+
+      <!-- 問題文表示エリア -->
+      <div class="question-box" id="question-text"></div>
+      <div id="japanese-box" class="japanese-text"></div>
+
+      <!-- 1. レベル1: 選択問題UI -->
+      <div id="ui-choice" class="options-grid hidden"></div>
+
+      <!-- 2. レベル2: 並べ替えUI -->
+      <div id="ui-sort" class="hidden">
+        <div id="selected-words" class="word-container"></div>
+        <div id="pool-words" class="word-container"></div>
+      </div>
+
+      <!-- 3. レベル3: ノート自己採点UI -->
+      <div id="ui-write" class="hidden">
+        <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:12px;">
+          ※ ノートに英文を書いてから「答えを表示する」を押してください。
+        </p>
+        <button id="show-answer-btn" class="btn-primary" onclick="revealSelfAnswer()">答えを表示する</button>
+
+        <div id="answer-reveal-area" class="hidden">
+          <div class="answer-box">
+            <div class="answer-box-title">正解（模範英文）</div>
+            <div class="answer-box-content" id="correct-english-text"></div>
+          </div>
+          <p style="font-size:0.9rem; font-weight:600; text-align:center; margin-bottom:10px;">
+            自分のノートと見比べて採点してください
+          </p>
+          <div class="self-eval-buttons">
+            <button class="btn-success" onclick="handleSelfEval(true)">⭕ 正解できた</button>
+            <button class="btn-danger" onclick="handleSelfEval(false)">❌ 間違えた</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="feedback" class="feedback hidden"></div>
+
+      <div class="btn-group" style="margin-top:12px;">
+        <button id="submit-btn" class="btn-primary" onclick="checkAnswer()">回答する</button>
+        <button id="next-btn" class="btn-primary hidden" onclick="nextQuestion()">次の問題へ</button>
+        <button class="btn-secondary" onclick="backToHome()">ホームに戻る</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // デプロイしたGASの「ウェブアプリURL」を設定してください
+    const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbzjj09TaE_MyPQjAG_aZllejzvbWOA8Rk2fRSfIIIufkq8dZE0BqKUqlQxyIQXXCAk9/exec';
+
+    let homeData = null;
+    let currentQuestions = [];
+    let currentIndex = 0;
+    let currentMode = 'choice';
+    let currentLevel = '1';
+    let isAllSelected = true;
+
+    const LEVEL_MODE_DICT = {
+      '1': 'choice',
+      '2': 'sort',
+      '3': 'write'
     };
-  });
 
-  return {
-    status: 'success',
-    questions: unclearedQuestions
-  };
-}
+    window.onload = function() {
+      const savedId = localStorage.getItem('student_id') || '';
+      document.getElementById('student-id').value = savedId;
+      fetchHomeData();
+    };
 
-// 3. 正解ログ書き込み（1生徒1行方式・厳密文字列処理）
-function markAsCleared(studentId, questionId, level) {
-  if (!studentId || !questionId) return;
+    function showLoading(msg = '処理中...') {
+      const loader = document.getElementById('loading');
+      loader.innerText = msg;
+      loader.classList.remove('hidden');
+    }
 
-  const lock = LockService.getScriptLock();
-  try {
-    lock.waitLock(15000);
+    function hideLoading() {
+      document.getElementById('loading').classList.add('hidden');
+    }
 
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const lSheet = ss.getSheetByName(SHEET_LOGS);
-    const lData = lSheet.getDataRange().getValues();
-    const colIdx = LEVEL_COL_MAP[level] || 1;
+    function onStudentIdChange() {
+      const studentId = getStudentId();
+      if (studentId) localStorage.setItem('student_id', studentId);
+      fetchHomeData();
+    }
 
-    let targetRowIndex = -1;
-    let currentIds = [];
+    function getStudentId() {
+      return document.getElementById('student-id').value.trim();
+    }
 
-    for (let i = 1; i < lData.length; i++) {
-      if (String(lData[i][0]).trim() === String(studentId).trim()) {
-        targetRowIndex = i + 1;
-        const val = String(lData[i][colIdx] || '');
-        if (val) {
-          currentIds = val.split(',').map(s => String(s).trim()).filter(s => s.length > 0);
-        }
-        break;
+    async function apiGet(params) {
+      const searchParams = new URLSearchParams(params);
+      const targetUrl = `${GAS_API_URL}?${searchParams.toString()}`;
+      
+      const response = await fetch(targetUrl, {
+        method: 'GET',
+        redirect: 'follow'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`サーバーレスポンスエラー (${response.status})`);
+      }
+      return await response.json();
+    }
+
+    async function apiPost(data) {
+      const response = await fetch(GAS_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(data),
+        redirect: 'follow'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`サーバーレスポンスエラー (${response.status})`);
+      }
+      return await response.json();
+    }
+
+    async function fetchHomeData() {
+      const studentId = getStudentId();
+      showLoading('データを読み込み中...');
+      try {
+        const res = await apiGet({ action: 'getHomeData', studentId: studentId });
+        if (res.status === 'error') throw new Error(res.message);
+        initHome(res);
+      } catch (err) {
+        handleError(err);
       }
     }
 
-    const targetQId = String(questionId).trim();
-    if (!currentIds.includes(targetQId)) {
-      currentIds.push(targetQId);
-      const newIdsStr = currentIds.join(',');
+    function initHome(data) {
+      homeData = data;
+      const container = document.getElementById('grammar-checkbox-list');
 
-      if (targetRowIndex !== -1) {
-        lSheet.getRange(targetRowIndex, colIdx + 1).setValue(newIdsStr);
-        lSheet.getRange(targetRowIndex, 5).setValue(new Date());
+      let savedChecked = [];
+      const currentCheckboxes = document.querySelectorAll('#grammar-checkbox-list input[type="checkbox"]:checked');
+      if (currentCheckboxes.length > 0) {
+        savedChecked = Array.from(currentCheckboxes).map(c => c.value);
       } else {
-        const newRow = [studentId, '', '', '', new Date()];
-        newRow[colIdx] = newIdsStr;
-        lSheet.appendRow(newRow);
+        const stored = localStorage.getItem('selected_grammars');
+        if (stored) {
+          try { savedChecked = JSON.parse(stored); } catch(e) {}
+        }
+      }
+
+      container.innerHTML = '';
+
+      if (data.grammars && data.grammars.length > 0) {
+        data.grammars.forEach(g => {
+          const label = document.createElement('label');
+          label.className = 'checkbox-item';
+          
+          const chk = document.createElement('input');
+          chk.type = 'checkbox';
+          chk.value = g;
+          
+          if (savedChecked.length > 0) {
+            chk.checked = savedChecked.includes(g);
+          } else {
+            chk.checked = true;
+          }
+          
+          chk.onchange = onCheckboxChange;
+
+          label.appendChild(chk);
+          label.appendChild(document.createTextNode(g));
+          container.appendChild(label);
+        });
+      } else {
+        container.innerHTML = '<div style="font-size:0.85rem; color:var(--text-muted);">文法データがありません</div>';
+      }
+
+      updateStatusDisplay();
+      hideLoading();
+    }
+
+    function onCheckboxChange() {
+      saveSelectedGrammars();
+      updateStatusDisplay();
+    }
+
+    function toggleSelectAllGrammars() {
+      const checkboxes = document.querySelectorAll('#grammar-checkbox-list input[type="checkbox"]');
+      isAllSelected = !isAllSelected;
+      checkboxes.forEach(chk => chk.checked = isAllSelected);
+      saveSelectedGrammars();
+      updateStatusDisplay();
+    }
+
+    function saveSelectedGrammars() {
+      const selected = getSelectedGrammars();
+      localStorage.setItem('selected_grammars', JSON.stringify(selected));
+    }
+
+    function getSelectedGrammars() {
+      const checkboxes = document.querySelectorAll('#grammar-checkbox-list input[type="checkbox"]:checked');
+      return Array.from(checkboxes).map(chk => chk.value);
+    }
+
+    function updateStatusDisplay() {
+      if (!homeData || !homeData.stats) return;
+
+      const selectedGrammars = getSelectedGrammars();
+      const selectedL = document.getElementById('level-select').value;
+
+      let total = 0;
+      let cleared = 0;
+
+      Object.keys(homeData.stats).forEach(key => {
+        const parts = key.split('_');
+        const g = parts[0];
+        const l = parts[1];
+
+        const matchG = selectedGrammars.includes(g);
+        const matchL = (String(l) === String(selectedL));
+
+        if (matchG && matchL) {
+          total += homeData.stats[key].total || 0;
+          cleared += homeData.stats[key].cleared || 0;
+        }
+      });
+
+      const percent = total > 0 ? Math.round((cleared / total) * 100) : 0;
+      document.getElementById('status-text').innerText = `${cleared} / ${total} 問 (${percent}%)`;
+      document.getElementById('progress-fill').style.width = percent + '%';
+    }
+
+    async function startLearning() {
+      const studentId = getStudentId();
+      if (!studentId) {
+        alert('学籍番号（または生徒ID）を入力してください。');
+        return;
+      }
+
+      const selectedGrammars = getSelectedGrammars();
+      if (selectedGrammars.length === 0) {
+        alert('少なくとも1つの文法カテゴリにチェックを入れてください。');
+        return;
+      }
+
+      saveSelectedGrammars();
+
+      currentLevel = document.getElementById('level-select').value;
+      currentMode = LEVEL_MODE_DICT[currentLevel] || 'choice';
+
+      showLoading('問題を準備中...');
+      try {
+        const res = await apiGet({
+          action: 'getQuestions',
+          studentId: studentId,
+          grammars: selectedGrammars.join(','),
+          level: currentLevel
+        });
+        if (res.status === 'error') throw new Error(res.message);
+        setupQuiz(res.questions);
+      } catch (err) {
+        handleError(err);
       }
     }
 
-  } catch (e) {
-    throw new Error("書き込み処理が混み合っています: " + e.message);
-  } finally {
-    lock.releaseLock();
-  }
-}
+    function setupQuiz(questions) {
+      hideLoading();
+      if (!questions || questions.length === 0) {
+        alert('選択した条件（文法・レベル）で未正解の問題はありません！');
+        return;
+      }
 
-// 4. 進捗リセット
-function resetProgress(studentId, selectedGrammars, level) {
-  if (!studentId) throw new Error("学籍番号を入力してください。");
+      currentQuestions = [...questions];
+      shuffleArray(currentQuestions);
+      
+      currentIndex = 0;
 
-  const lock = LockService.getScriptLock();
-  try {
-    lock.waitLock(15000);
+      document.getElementById('home-screen').classList.add('hidden');
+      document.getElementById('quiz-screen').classList.remove('hidden');
+      
+      showQuestion();
+    }
 
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const qSheet = ss.getSheetByName(SHEET_QUESTIONS);
-    const lSheet = ss.getSheetByName(SHEET_LOGS);
+    function makeBlankQuestion(english, targetWord) {
+      if (!english || !targetWord) return english;
+      const escapedTarget = targetWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(escapedTarget, 'gi');
+      return english.replace(regex, '(<span class="blank-space"></span>)');
+    }
 
-    const qData = qSheet.getDataRange().getValues();
-    qData.shift();
-    const removeIdSet = new Set();
-    qData.forEach(row => {
-      const id = String(row[0]).trim();
-      const grammar = String(row[1]).trim();
-      if (selectedGrammars.length === 0 || selectedGrammars.includes(grammar)) {
-        removeIdSet.add(id);
+    function showQuestion() {
+      if (currentIndex >= currentQuestions.length) {
+        alert('このセットの問題がすべて完了しました！');
+        backToHome();
+        return;
+      }
+
+      const q = currentQuestions[currentIndex];
+      
+      document.getElementById('quiz-category').innerText = `${q.grammar} - Level ${currentLevel}`;
+      document.getElementById('quiz-progress').innerText = `${currentIndex + 1} / ${currentQuestions.length} 問`;
+      
+      document.getElementById('japanese-box').innerText = q.japanese || '';
+      
+      if (currentMode === 'choice') {
+        document.getElementById('question-text').innerHTML = makeBlankQuestion(q.english, q.targetWord);
+      } else {
+        document.getElementById('question-text').innerHTML = '';
+      }
+      
+      document.getElementById('ui-choice').classList.add('hidden');
+      document.getElementById('ui-sort').classList.add('hidden');
+      document.getElementById('ui-write').classList.add('hidden');
+
+      const feedback = document.getElementById('feedback');
+      feedback.className = 'feedback hidden';
+
+      const submitBtn = document.getElementById('submit-btn');
+
+      if (currentMode === 'choice') {
+        submitBtn.classList.remove('hidden');
+        setupChoiceUI(q);
+      } else if (currentMode === 'sort') {
+        submitBtn.classList.remove('hidden');
+        setupSortUI(q);
+      } else if (currentMode === 'write') {
+        submitBtn.classList.add('hidden');
+        setupWriteUI(q);
+      }
+
+      document.getElementById('next-btn').classList.add('hidden');
+    }
+
+    function setupChoiceUI(q) {
+      const choiceContainer = document.getElementById('ui-choice');
+      choiceContainer.innerHTML = '';
+      choiceContainer.classList.remove('hidden');
+
+      let options = [q.targetWord];
+      let dummyPool = [...q.dummyWords];
+      shuffleArray(dummyPool);
+
+      for (let i = 0; i < Math.min(3, dummyPool.length); i++) {
+        options.push(dummyPool[i]);
+      }
+      shuffleArray(options);
+
+      options.forEach(opt => {
+        const btn = document.createElement('button');
+        btn.className = 'btn-option';
+        btn.innerText = opt;
+        btn.onclick = function() {
+          document.querySelectorAll('.btn-option').forEach(b => b.classList.remove('selected'));
+          btn.classList.add('selected');
+          window.selectedOption = opt;
+        };
+        choiceContainer.appendChild(btn);
+      });
+      window.selectedOption = null;
+    }
+
+    function setupSortUI(q) {
+      const sortContainer = document.getElementById('ui-sort');
+      sortContainer.classList.remove('hidden');
+
+      const selectedDiv = document.getElementById('selected-words');
+      const poolDiv = document.getElementById('pool-words');
+      selectedDiv.innerHTML = '';
+      poolDiv.innerHTML = '';
+
+      let words = q.english.trim().split(/\s+/);
+      shuffleArray(words);
+
+      words.forEach((w, idx) => {
+        const chip = document.createElement('div');
+        chip.className = 'word-chip';
+        chip.innerText = w;
+        chip.id = 'word-' + idx;
+        chip.onclick = function() {
+          if (chip.parentElement.id === 'pool-words') {
+            selectedDiv.appendChild(chip);
+          } else {
+            poolDiv.appendChild(chip);
+          }
+        };
+        poolDiv.appendChild(chip);
+      });
+    }
+
+    function setupWriteUI(q) {
+      const writeContainer = document.getElementById('ui-write');
+      writeContainer.classList.remove('hidden');
+
+      document.getElementById('show-answer-btn').classList.remove('hidden');
+      document.getElementById('answer-reveal-area').classList.add('hidden');
+      
+      document.getElementById('correct-english-text').innerText = q.english;
+    }
+
+    function revealSelfAnswer() {
+      document.getElementById('show-answer-btn').classList.add('hidden');
+      document.getElementById('answer-reveal-area').classList.remove('hidden');
+    }
+
+    async function handleSelfEval(isCorrect) {
+      const q = currentQuestions[currentIndex];
+      const feedback = document.getElementById('feedback');
+      const studentId = getStudentId();
+
+      document.getElementById('answer-reveal-area').classList.add('hidden');
+
+      if (isCorrect) {
+        feedback.innerText = '⭕ 正解！素晴らしい！';
+        feedback.className = 'feedback correct';
+        
+        await apiPost({
+          action: 'markAsCleared',
+          studentId: studentId,
+          questionId: q.id,
+          level: currentLevel
+        });
+      } else {
+        feedback.innerText = '❌ 次回頑張りましょう！';
+        feedback.className = 'feedback incorrect';
+        currentQuestions.push(q);
+      }
+
+      document.getElementById('next-btn').classList.remove('hidden');
+      document.getElementById('next-btn').focus();
+    }
+
+    async function checkAnswer() {
+      const q = currentQuestions[currentIndex];
+      const feedback = document.getElementById('feedback');
+      const studentId = getStudentId();
+      let userAns = '';
+      let targetCorrectAns = '';
+
+      if (currentMode === 'choice') {
+        userAns = window.selectedOption || '';
+        targetCorrectAns = q.targetWord;
+      } else if (currentMode === 'sort') {
+        const chips = document.getElementById('selected-words').querySelectorAll('.word-chip');
+        const selectedList = [];
+        chips.forEach(c => selectedList.push(c.innerText));
+        userAns = selectedList.join(' ');
+        targetCorrectAns = q.english;
+      }
+
+      if (!userAns) {
+        alert('解答を選択してください。');
+        return;
+      }
+
+      document.getElementById('submit-btn').classList.add('hidden');
+
+      if (userAns.toLowerCase() === String(targetCorrectAns).trim().toLowerCase()) {
+        feedback.innerText = '⭕ 正解！';
+        feedback.className = 'feedback correct';
+        
+        await apiPost({
+          action: 'markAsCleared',
+          studentId: studentId,
+          questionId: q.id,
+          level: currentLevel
+        });
+      } else {
+        feedback.innerText = `❌ 不正解... (正解: ${targetCorrectAns})`;
+        feedback.className = 'feedback incorrect';
+        currentQuestions.push(q);
+      }
+
+      document.getElementById('next-btn').classList.remove('hidden');
+      document.getElementById('next-btn').focus();
+    }
+
+    function nextQuestion() {
+      currentIndex++;
+      showQuestion();
+    }
+
+    function backToHome() {
+      document.getElementById('quiz-screen').classList.add('hidden');
+      document.getElementById('home-screen').classList.remove('hidden');
+      fetchHomeData();
+    }
+
+    async function handleReset() {
+      const studentId = getStudentId();
+      if (!studentId) return alert('学籍番号（または生徒ID）を入力してください。');
+
+      const selectedGrammars = getSelectedGrammars();
+      if (selectedGrammars.length === 0) {
+        alert('リセット対象の文法カテゴリに1つ以上チェックを入れてください。');
+        return;
+      }
+
+      const l = document.getElementById('level-select').value;
+
+      if (confirm(`チェックを入れた文法カテゴリ（レベル ${l}）の進捗をリセットしますか？`)) {
+        showLoading('リセット中...');
+        try {
+          await apiPost({
+            action: 'resetProgress',
+            studentId: studentId,
+            grammars: selectedGrammars,
+            level: l
+          });
+          hideLoading();
+          alert('進捗をリセットしました。');
+          fetchHomeData();
+        } catch (err) {
+          handleError(err);
+        }
+      }
+    }
+
+    function handleError(err) {
+      hideLoading();
+      alert('エラーが発生しました: ' + (err.message || err));
+    }
+
+    function shuffleArray(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+    }
+
+    document.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        const quizScreen = document.getElementById('quiz-screen');
+        if (!quizScreen.classList.contains('hidden')) {
+          const submitBtn = document.getElementById('submit-btn');
+          const nextBtn = document.getElementById('next-btn');
+
+          if (!submitBtn.classList.contains('hidden')) {
+            checkAnswer();
+          } else if (!nextBtn.classList.contains('hidden')) {
+            nextQuestion();
+          }
+        }
       }
     });
-
-    const lData = lSheet.getDataRange().getValues();
-    const colIdx = LEVEL_COL_MAP[level] || 1;
-
-    for (let i = 1; i < lData.length; i++) {
-      if (String(lData[i][0]).trim() === String(studentId).trim()) {
-        const val = String(lData[i][colIdx] || '');
-        if (val) {
-          const currentIds = val.split(',').map(s => String(s).trim());
-          const filteredIds = currentIds.filter(id => !removeIdSet.has(id));
-          lSheet.getRange(i + 1, colIdx + 1).setValue(filteredIds.join(','));
-          lSheet.getRange(i + 1, 5).setValue(new Date());
-        }
-        break;
-      }
-    }
-  } catch (e) {
-    throw new Error("リセット処理中にエラーが発生しました。");
-  } finally {
-    lock.releaseLock();
-  }
-}
+  </script>
+</body>
+</html>
