@@ -252,6 +252,9 @@
     let currentMode = 'choice';
     let currentLevel = '1';
     let isAllSelected = true;
+    
+    // バックグラウンド同期用キュー
+    let pendingSyncTasks = [];
 
     const LEVEL_MODE_DICT = {
       '1': 'choice',
@@ -264,6 +267,14 @@
       document.getElementById('student-id').value = savedId;
       fetchHomeData();
     };
+
+    // 未完了の保存処理がある場合の離脱防止
+    window.addEventListener('beforeunload', function (e) {
+      if (pendingSyncTasks.length > 0) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    });
 
     function showLoading(msg = '処理中...') {
       const loader = document.getElementById('loading');
@@ -312,6 +323,29 @@
         throw new Error(`サーバーレスポンスエラー (${response.status})`);
       }
       return await response.json();
+    }
+
+    // バックグラウンドでGAS保存を非同期キューに追加
+    function queueMarkAsCleared(studentId, questionId, level) {
+      const task = apiPost({
+        action: 'markAsCleared',
+        studentId: studentId,
+        questionId: questionId,
+        level: level
+      }).finally(() => {
+        // 完了したらキューから除外
+        pendingSyncTasks = pendingSyncTasks.filter(t => t !== task);
+      });
+      pendingSyncTasks.push(task);
+    }
+
+    // すべての同期タスクの完了を待機
+    async function waitForPendingSync() {
+      if (pendingSyncTasks.length > 0) {
+        showLoading('データを同期・保存中...');
+        await Promise.all(pendingSyncTasks);
+        hideLoading();
+      }
     }
 
     async function fetchHomeData() {
@@ -467,6 +501,7 @@
       shuffleArray(currentQuestions);
       
       currentIndex = 0;
+      pendingSyncTasks = [];
 
       document.getElementById('home-screen').classList.add('hidden');
       document.getElementById('quiz-screen').classList.remove('hidden');
@@ -481,8 +516,9 @@
       return english.replace(regex, '(<span class="blank-space"></span>)');
     }
 
-    function showQuestion() {
+    async function showQuestion() {
       if (currentIndex >= currentQuestions.length) {
+        await waitForPendingSync();
         alert('このセットの問題がすべて完了しました！');
         backToHome();
         return;
@@ -595,7 +631,7 @@
       document.getElementById('answer-reveal-area').classList.remove('hidden');
     }
 
-    async function handleSelfEval(isCorrect) {
+    function handleSelfEval(isCorrect) {
       const q = currentQuestions[currentIndex];
       const feedback = document.getElementById('feedback');
       const studentId = getStudentId();
@@ -603,15 +639,12 @@
       document.getElementById('answer-reveal-area').classList.add('hidden');
 
       if (isCorrect) {
+        // UI演出（即時反映）
         feedback.innerText = '⭕ 正解！素晴らしい！';
         feedback.className = 'feedback correct';
         
-        await apiPost({
-          action: 'markAsCleared',
-          studentId: studentId,
-          questionId: q.id,
-          level: currentLevel
-        });
+        // バックグラウンドで非同期通信を実行
+        queueMarkAsCleared(studentId, q.id, currentLevel);
       } else {
         feedback.innerText = '❌ 次回頑張りましょう！';
         feedback.className = 'feedback incorrect';
@@ -622,7 +655,7 @@
       document.getElementById('next-btn').focus();
     }
 
-    async function checkAnswer() {
+    function checkAnswer() {
       const q = currentQuestions[currentIndex];
       const feedback = document.getElementById('feedback');
       const studentId = getStudentId();
@@ -648,15 +681,12 @@
       document.getElementById('submit-btn').classList.add('hidden');
 
       if (userAns.toLowerCase() === String(targetCorrectAns).trim().toLowerCase()) {
+        // UI演出（即時反映）
         feedback.innerText = '⭕ 正解！';
         feedback.className = 'feedback correct';
         
-        await apiPost({
-          action: 'markAsCleared',
-          studentId: studentId,
-          questionId: q.id,
-          level: currentLevel
-        });
+        // バックグラウンドで非同期通信を実行
+        queueMarkAsCleared(studentId, q.id, currentLevel);
       } else {
         feedback.innerText = `❌ 不正解... (正解: ${targetCorrectAns})`;
         feedback.className = 'feedback incorrect';
@@ -672,7 +702,9 @@
       showQuestion();
     }
 
-    function backToHome() {
+    async function backToHome() {
+      // 実行中の保存タスクがあれば確実に完了するまで同期
+      await waitForPendingSync();
       document.getElementById('quiz-screen').classList.add('hidden');
       document.getElementById('home-screen').classList.remove('hidden');
       fetchHomeData();
