@@ -112,13 +112,11 @@
     .question-box { font-size: 1.15rem; font-weight: 600; line-height: 1.5; margin-bottom: 8px; }
     .japanese-text { font-size: 1rem; color: var(--text-main); font-weight: 600; margin-bottom: 16px; background: #eef2ff; padding: 12px; border-radius: 6px; }
 
-    /* （ ）内の幅固定 */
     .blank-space {
       display: inline-block;
       width: 3.5em;
     }
 
-    /* レベル3 答え合わせ用カード */
     .answer-box {
       background-color: #f0fdf4; border: 1px solid #bbf7d0;
       border-radius: 8px; padding: 16px; margin-bottom: 16px;
@@ -154,7 +152,6 @@
         <input type="text" id="student-id" placeholder="例: A12345" onchange="onStudentIdChange()">
       </div>
 
-      <!-- チェックボックス形式の文法選択 -->
       <div class="form-group">
         <div class="checkbox-header">
           <label>出題される文法（複数選択可）</label>
@@ -197,20 +194,19 @@
         <span id="quiz-progress">1 / 10 問</span>
       </div>
 
-      <!-- 問題文表示エリア -->
       <div class="question-box" id="question-text"></div>
       <div id="japanese-box" class="japanese-text"></div>
 
-      <!-- 1. レベル1: 選択問題UI -->
+      <!-- レベル1: 選択問題UI -->
       <div id="ui-choice" class="options-grid hidden"></div>
 
-      <!-- 2. レベル2: 並べ替えUI -->
+      <!-- レベル2: 並べ替えUI -->
       <div id="ui-sort" class="hidden">
         <div id="selected-words" class="word-container"></div>
         <div id="pool-words" class="word-container"></div>
       </div>
 
-      <!-- 3. レベル3: ノート自己採点UI -->
+      <!-- レベル3: ノート自己採点UI -->
       <div id="ui-write" class="hidden">
         <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:12px;">
           ※ ノートに英文を書いてから「答えを表示する」を押してください。
@@ -243,8 +239,7 @@
   </div>
 
   <script>
-    // デプロイしたGASの「ウェブアプリURL」を設定してください
-    const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbzMGaN1MnvhRxwFd0OXKJBfbCmEFNOu4GDDJfkTQBeCKVUAYFeaoB0p6G_wzbBoKPB1/exec';
+    const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbywheHml3KGLJgmvfjaMSf5NxrWp8EP_Ao81dAu6R_WsltFS79HqmUP34AdYK8l30WW/exec';
 
     let homeData = null;
     let currentQuestions = [];
@@ -252,8 +247,6 @@
     let currentMode = 'choice';
     let currentLevel = '1';
     let isAllSelected = true;
-    
-    // バックグラウンド同期用キュー
     let pendingSyncTasks = [];
 
     const LEVEL_MODE_DICT = {
@@ -268,7 +261,6 @@
       fetchHomeData();
     };
 
-    // 未完了の保存処理がある場合の離脱防止
     window.addEventListener('beforeunload', function (e) {
       if (pendingSyncTasks.length > 0) {
         e.preventDefault();
@@ -311,39 +303,47 @@
       return await response.json();
     }
 
-    async function apiPost(data) {
-      const response = await fetch(GAS_API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(data),
-        redirect: 'follow'
-      });
-      
-      if (!response.ok) {
-        throw new Error(`サーバーレスポンスエラー (${response.status})`);
+    async function apiPostWithRetry(data, retries = 3) {
+      for (let i = 0; i < retries; i++) {
+        try {
+          const response = await fetch(GAS_API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify(data),
+            redirect: 'follow'
+          });
+          if (response.ok) {
+            const resJson = await response.json();
+            if (resJson.status === 'success') return resJson;
+          }
+        } catch (e) {
+          console.warn(`送信再試行中 (${i + 1}/${retries})...`);
+        }
+        await new Promise(r => setTimeout(r, 1000));
       }
-      return await response.json();
+      throw new Error('データ同期に失敗しました。通信環境をご確認ください。');
     }
 
-    // バックグラウンドでGAS保存を非同期キューに追加
     function queueMarkAsCleared(studentId, questionId, level) {
-      const task = apiPost({
+      const task = apiPostWithRetry({
         action: 'markAsCleared',
         studentId: studentId,
         questionId: questionId,
         level: level
       }).finally(() => {
-        // 完了したらキューから除外
         pendingSyncTasks = pendingSyncTasks.filter(t => t !== task);
       });
       pendingSyncTasks.push(task);
     }
 
-    // すべての同期タスクの完了を待機
     async function waitForPendingSync() {
       if (pendingSyncTasks.length > 0) {
-        showLoading('データを同期・保存中...');
-        await Promise.all(pendingSyncTasks);
+        showLoading('学習データを安全に同期中...');
+        try {
+          await Promise.all(pendingSyncTasks);
+        } catch (e) {
+          console.error(e);
+        }
         hideLoading();
       }
     }
@@ -528,7 +528,6 @@
       
       document.getElementById('quiz-category').innerText = `${q.grammar} - Level ${currentLevel}`;
       document.getElementById('quiz-progress').innerText = `${currentIndex + 1} / ${currentQuestions.length} 問`;
-      
       document.getElementById('japanese-box').innerText = q.japanese || '';
       
       if (currentMode === 'choice') {
@@ -622,7 +621,6 @@
 
       document.getElementById('show-answer-btn').classList.remove('hidden');
       document.getElementById('answer-reveal-area').classList.add('hidden');
-      
       document.getElementById('correct-english-text').innerText = q.english;
     }
 
@@ -639,11 +637,8 @@
       document.getElementById('answer-reveal-area').classList.add('hidden');
 
       if (isCorrect) {
-        // UI演出（即時反映）
         feedback.innerText = '⭕ 正解！素晴らしい！';
         feedback.className = 'feedback correct';
-        
-        // バックグラウンドで非同期通信を実行
         queueMarkAsCleared(studentId, q.id, currentLevel);
       } else {
         feedback.innerText = '❌ 次回頑張りましょう！';
@@ -681,11 +676,8 @@
       document.getElementById('submit-btn').classList.add('hidden');
 
       if (userAns.toLowerCase() === String(targetCorrectAns).trim().toLowerCase()) {
-        // UI演出（即時反映）
         feedback.innerText = '⭕ 正解！';
         feedback.className = 'feedback correct';
-        
-        // バックグラウンドで非同期通信を実行
         queueMarkAsCleared(studentId, q.id, currentLevel);
       } else {
         feedback.innerText = `❌ 不正解... (正解: ${targetCorrectAns})`;
@@ -703,7 +695,6 @@
     }
 
     async function backToHome() {
-      // 実行中の保存タスクがあれば確実に完了するまで同期
       await waitForPendingSync();
       document.getElementById('quiz-screen').classList.add('hidden');
       document.getElementById('home-screen').classList.remove('hidden');
@@ -725,7 +716,7 @@
       if (confirm(`チェックを入れた文法カテゴリ（レベル ${l}）の進捗をリセットしますか？`)) {
         showLoading('リセット中...');
         try {
-          await apiPost({
+          await apiPostWithRetry({
             action: 'resetProgress',
             studentId: studentId,
             grammars: selectedGrammars,
