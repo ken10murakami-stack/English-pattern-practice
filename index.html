@@ -239,7 +239,7 @@
   </div>
 
   <script>
-    const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbywheHml3KGLJgmvfjaMSf5NxrWp8EP_Ao81dAu6R_WsltFS79HqmUP34AdYK8l30WW/exec';
+    const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbyuDxRHDKeoesFCAkwLTalNynG4I5DdmdbBfAezCLUvlNp5QfIJC9KVqlMpj16L_9zM/exec';
 
     let homeData = null;
     let currentQuestions = [];
@@ -321,14 +321,25 @@
         }
         await new Promise(r => setTimeout(r, 1000));
       }
-      throw new Error('データ同期に失敗しました。通信環境をご確認ください。');
+      throw new Error('データ同期に失敗しました。');
     }
 
-    function queueMarkAsCleared(studentId, questionId, level) {
+    // 正解時にローカルの達成数を即時カウントアップ
+    function incrementLocalCleared(grammar, level) {
+      const key = `${grammar}_${level}`;
+      if (homeData && homeData.stats && homeData.stats[key]) {
+        if (homeData.stats[key].cleared < homeData.stats[key].total) {
+          homeData.stats[key].cleared++;
+        }
+      }
+    }
+
+    function queueMarkAsCleared(studentId, q, level) {
+      incrementLocalCleared(q.grammar, level);
       const task = apiPostWithRetry({
         action: 'markAsCleared',
         studentId: studentId,
-        questionId: questionId,
+        questionId: q.id,
         level: level
       }).finally(() => {
         pendingSyncTasks = pendingSyncTasks.filter(t => t !== task);
@@ -338,7 +349,7 @@
 
     async function waitForPendingSync() {
       if (pendingSyncTasks.length > 0) {
-        showLoading('学習データを安全に同期中...');
+        showLoading('前回の学習データを同期中...');
         try {
           await Promise.all(pendingSyncTasks);
         } catch (e) {
@@ -472,6 +483,9 @@
 
       saveSelectedGrammars();
 
+      // 前回の未完了タスクがあればここで同期待機（再出題を確実に防止）
+      await waitForPendingSync();
+
       currentLevel = document.getElementById('level-select').value;
       currentMode = LEVEL_MODE_DICT[currentLevel] || 'choice';
 
@@ -501,7 +515,6 @@
       shuffleArray(currentQuestions);
       
       currentIndex = 0;
-      pendingSyncTasks = [];
 
       document.getElementById('home-screen').classList.add('hidden');
       document.getElementById('quiz-screen').classList.remove('hidden');
@@ -516,9 +529,8 @@
       return english.replace(regex, '(<span class="blank-space"></span>)');
     }
 
-    async function showQuestion() {
+    function showQuestion() {
       if (currentIndex >= currentQuestions.length) {
-        await waitForPendingSync();
         alert('このセットの問題がすべて完了しました！');
         backToHome();
         return;
@@ -621,6 +633,7 @@
 
       document.getElementById('show-answer-btn').classList.remove('hidden');
       document.getElementById('answer-reveal-area').classList.add('hidden');
+      
       document.getElementById('correct-english-text').innerText = q.english;
     }
 
@@ -639,7 +652,7 @@
       if (isCorrect) {
         feedback.innerText = '⭕ 正解！素晴らしい！';
         feedback.className = 'feedback correct';
-        queueMarkAsCleared(studentId, q.id, currentLevel);
+        queueMarkAsCleared(studentId, q, currentLevel);
       } else {
         feedback.innerText = '❌ 次回頑張りましょう！';
         feedback.className = 'feedback incorrect';
@@ -678,7 +691,7 @@
       if (userAns.toLowerCase() === String(targetCorrectAns).trim().toLowerCase()) {
         feedback.innerText = '⭕ 正解！';
         feedback.className = 'feedback correct';
-        queueMarkAsCleared(studentId, q.id, currentLevel);
+        queueMarkAsCleared(studentId, q, currentLevel);
       } else {
         feedback.innerText = `❌ 不正解... (正解: ${targetCorrectAns})`;
         feedback.className = 'feedback incorrect';
@@ -694,11 +707,11 @@
       showQuestion();
     }
 
-    async function backToHome() {
-      await waitForPendingSync();
+    // ホーム画面への即時復帰（重い通信待機をスキップ）
+    function backToHome() {
       document.getElementById('quiz-screen').classList.add('hidden');
       document.getElementById('home-screen').classList.remove('hidden');
-      fetchHomeData();
+      updateStatusDisplay();
     }
 
     async function handleReset() {
